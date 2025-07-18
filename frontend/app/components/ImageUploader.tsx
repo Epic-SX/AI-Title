@@ -1,112 +1,128 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { Upload } from 'lucide-react';
+import React, { useCallback, useState } from 'react';
+import { Upload, X } from 'lucide-react';
+import Image from 'next/image';
+import { Button } from '@/components/ui/button';
 
 interface ImageUploaderProps {
-  onImageDrop: (imageData: string) => void;
-  initialImage?: string;
+  onImageAdded: (imageData: string) => void;
+  maxImages?: number;
 }
 
-export default function ImageUploader({ onImageDrop, initialImage = '' }: ImageUploaderProps) {
-  const [isDragging, setIsDragging] = useState(false);
-  const [preview, setPreview] = useState<string | null>(initialImage || null);
+const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageAdded, maxImages = 5 }) => {
+  const [images, setImages] = useState<string[]>([]);
+  const [dragActive, setDragActive] = useState(false);
 
-  // Update preview when initialImage changes
-  useEffect(() => {
-    if (initialImage) {
-      setPreview(initialImage);
+  const processFile = useCallback((file: File) => {
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        if (result) {
+          setImages(prev => [...prev, result]);
+          onImageAdded(result);
+        }
+      };
+      reader.readAsDataURL(file);
     }
-  }, [initialImage]);
+  }, [onImageAdded]);
 
-  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(true);
-  }, []);
+    setDragActive(false);
+    
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const files = Array.from(e.dataTransfer.files);
+      files.forEach(file => processFile(file));
+    }
+  }, [processFile]);
+
+  const handleChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    if (e.target.files && e.target.files[0]) {
+      const files = Array.from(e.target.files);
+      files.forEach(file => processFile(file));
+    }
+  }, [processFile]);
 
   const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
+    setDragActive(false);
   }, []);
 
   const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    if (e.dataTransfer.files) {
-      setIsDragging(true);
-    }
+    setDragActive(true);
   }, []);
 
-  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragging(false);
-    
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const file = e.dataTransfer.files[0];
-      processFile(file);
-    }
+    setDragActive(true);
   }, []);
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      processFile(file);
-    }
-  }, []);
-
-  const processFile = (file: File) => {
-    if (!file.type.match('image.*')) {
-      alert('画像ファイルのみアップロードできます');
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      setPreview(result);
-      onImageDrop(result);
-    };
-    reader.readAsDataURL(file);
+  const removeImage = (indexToRemove: number) => {
+    setImages(prev => prev.filter((_, index) => index !== indexToRemove));
   };
 
   return (
-    <div className="w-full h-full">
+    <div className="space-y-4">
       <div
-        className={`dropzone flex flex-col items-center justify-center h-[180px] ${
-          isDragging ? 'dropzone-active' : ''
-        } ${preview ? 'p-1' : 'p-6'}`}
+        className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+          dragActive ? 'border-primary bg-primary/5' : 'border-gray-300 hover:border-gray-400'
+        }`}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
-        onClick={() => document.getElementById('fileInput')?.click()}
+        onClick={() => document.getElementById('image-upload')?.click()}
       >
+        <Upload className="mx-auto h-12 w-12 text-gray-400" />
+        <p className="mt-2 text-sm text-gray-600">
+          画像をドラッグ&ドロップするか、クリックして選択してください
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          JPG, PNG, WebP (最大 {maxImages} 枚)
+        </p>
         <input
-          id="fileInput"
+          id="image-upload"
           type="file"
+          multiple
           accept="image/*"
+          onChange={handleChange}
           className="hidden"
-          onChange={handleFileSelect}
         />
-
-        {!preview ? (
-          <div className="flex flex-col items-center text-center">
-            <Upload className="w-10 h-10 text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">
-              クリックまたはドロップして画像をアップロード
-            </p>
-          </div>
-        ) : (
-          <img 
-            src={preview} 
-            alt="Preview" 
-            className="max-w-full max-h-full object-contain"
-          />
-        )}
       </div>
+
+      {images.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {images.map((image, index) => (
+            <div key={index} className="relative">
+              <Image
+                src={image}
+                alt={`Uploaded image ${index + 1}`}
+                width={150}
+                height={150}
+                className="w-full h-32 object-cover rounded-lg"
+              />
+              <Button
+                variant="destructive"
+                size="sm"
+                className="absolute top-1 right-1 h-6 w-6 rounded-full p-0"
+                onClick={() => removeImage(index)}
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
-} 
+};
+
+export default ImageUploader; 

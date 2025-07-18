@@ -1,3 +1,3 @@
 """
-Utility functions for the backend application.
+Utility functions for the AI Title Generator application.
 """ 

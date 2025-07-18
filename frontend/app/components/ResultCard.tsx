@@ -4,7 +4,6 @@ import { useState } from 'react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Copy, Check } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import LoadingSpinner from './LoadingSpinner';
 
 interface ResultCardProps {
@@ -16,6 +15,7 @@ interface ResultCardProps {
   itemType?: string;
   index?: number;
   loading?: boolean;
+  isProductVariant?: boolean;
   // For backward compatibility with the ResultsList component
   result?: {
     title: string;
@@ -24,6 +24,8 @@ interface ResultCardProps {
     product_type?: string;
     keywords?: string[];
     product_features?: string[];
+    raw_text?: string;
+    size?: string;
   };
 }
 
@@ -36,6 +38,7 @@ export default function ResultCard({
   itemType,
   index = 0,
   loading = false,
+  isProductVariant = false,
   result
 }: ResultCardProps) {
   const [copied, setCopied] = useState(false);
@@ -45,11 +48,34 @@ export default function ResultCard({
   const displayBrand = result?.brand || detectedBrand;
   const displayModel = result?.model || detectedModel;
   const displayType = result?.product_type || itemType;
+  const displaySize = result?.size;
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(displayTitle);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(displayTitle);
+      } else {
+        // Fallback method using textarea
+        const textarea = document.createElement('textarea');
+        textarea.value = displayTitle;
+        textarea.style.position = 'fixed';  // Prevent scrolling to bottom
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        
+        try {
+          document.execCommand('copy');
+        } catch (err) {
+          console.error('Fallback copy method failed:', err);
+        }
+        
+        document.body.removeChild(textarea);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text:', err);
+    }
   };
 
   if (loading) {
@@ -67,7 +93,9 @@ export default function ResultCard({
   return (
     <Card className="w-full mb-4">
       <CardHeader>
-        <CardTitle className="text-lg font-semibold">タイトル案 {index + 1}</CardTitle>
+        <CardTitle className="text-lg font-semibold">
+          {isProductVariant ? `画像 ${index + 1} の商品` : `タイトル案 ${index + 1}`}
+        </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
@@ -76,9 +104,9 @@ export default function ResultCard({
             <p className="text-sm border p-3 rounded-md bg-muted/50">{displayTitle}</p>
           </div>
 
-          {(displayBrand || displayModel) && (
+          {(displayBrand || displayModel || displaySize) && (
             <div className="grid grid-cols-2 gap-4">
-              {displayBrand && (
+              {displayBrand && displayBrand !== '不明' && (
                 <div>
                   <h3 className="font-medium mb-1">ブランド:</h3>
                   <p className="text-sm">{displayBrand}</p>
@@ -90,17 +118,23 @@ export default function ResultCard({
                   <p className="text-sm">{displayModel}</p>
                 </div>
               )}
+              {displaySize && displaySize !== '不明' && (
+                <div>
+                  <h3 className="font-medium mb-1">サイズ:</h3>
+                  <p className="text-sm">{displaySize}</p>
+                </div>
+              )}
             </div>
           )}
 
-          {displayType && (
+          {displayType && displayType !== '不明' && (
             <div>
               <h3 className="font-medium mb-1">商品タイプ:</h3>
               <p className="text-sm">{displayType}</p>
             </div>
           )}
 
-          {detectedColor && (
+          {detectedColor && detectedColor !== '不明' && (
             <div>
               <h3 className="font-medium mb-1">検出カラー:</h3>
               <p className="text-sm">{detectedColor}</p>
@@ -125,6 +159,15 @@ export default function ResultCard({
               <h3 className="font-medium mb-2">抽出テキスト:</h3>
               <div className="text-sm border p-3 rounded-md bg-muted/50 whitespace-pre-line">
                 {extractedText}
+              </div>
+            </div>
+          )}
+
+          {result?.raw_text && (
+            <div>
+              <h3 className="font-medium mb-2">解析テキスト:</h3>
+              <div className="text-sm border p-3 rounded-md bg-muted/50 whitespace-pre-line">
+                {result.raw_text}
               </div>
             </div>
           )}

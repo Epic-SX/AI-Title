@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React from 'react';
 import ResultCard from './ResultCard';
 
 interface GenerationResult {
@@ -14,17 +14,23 @@ interface GenerationResult {
 
 interface ResultsListProps {
   results: GenerationResult[];
+  isMultipleProducts?: boolean;
 }
 
-export default function ResultsList({ results }: ResultsListProps) {
+export default function ResultsList({ results, isMultipleProducts = false }: ResultsListProps) {
   return (
     <div className="space-y-6">
       {results.length > 0 ? (
         results.map((result, index) => (
           <ResultCard 
             key={index}
+            title={result.title}
+            detectedBrand={result.brand}
+            detectedModel={result.model}
+            itemType={result.product_type}
             result={result}
             index={index}
+            isProductVariant={isMultipleProducts}
           />
         ))
       ) : (
