@@ -26,6 +26,9 @@ interface ResultCardProps {
     product_features?: string[];
     raw_text?: string;
     size?: string;
+    accessories?: string;
+    tailoring_storage?: string;
+    remaining_fabric?: string;
   };
 }
 
@@ -49,6 +52,9 @@ export default function ResultCard({
   const displayModel = result?.model || detectedModel;
   const displayType = result?.product_type || itemType;
   const displaySize = result?.size;
+  const displayAccessories = result?.accessories;
+  const displayTailoringStorage = result?.tailoring_storage;
+  const displayRemainingFabric = result?.remaining_fabric;
 
   const handleCopy = () => {
     try {
@@ -138,6 +144,27 @@ export default function ResultCard({
             <div>
               <h3 className="font-medium mb-1">検出カラー:</h3>
               <p className="text-sm">{detectedColor}</p>
+            </div>
+          )}
+
+          {displayAccessories && displayAccessories !== '不明' && (
+            <div>
+              <h3 className="font-medium mb-1">付属品:</h3>
+              <p className="text-sm">{displayAccessories}</p>
+            </div>
+          )}
+
+          {displayTailoringStorage && displayTailoringStorage !== '不明' && (
+            <div>
+              <h3 className="font-medium mb-1">仕立て・収納:</h3>
+              <p className="text-sm">{displayTailoringStorage}</p>
+            </div>
+          )}
+
+          {displayRemainingFabric && displayRemainingFabric !== '不明' && (
+            <div>
+              <h3 className="font-medium mb-1">残布:</h3>
+              <p className="text-sm">{displayRemainingFabric}</p>
             </div>
           )}
 

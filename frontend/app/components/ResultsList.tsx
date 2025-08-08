@@ -10,6 +10,9 @@ interface GenerationResult {
   product_type?: string;
   keywords?: string[];
   product_features?: string[];
+  accessories?: string;
+  tailoring_storage?: string;
+  remaining_fabric?: string;
 }
 
 interface ResultsListProps {
