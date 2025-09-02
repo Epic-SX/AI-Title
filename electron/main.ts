@@ -2,6 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
 import Store from 'electron-store';
+import { spawn, ChildProcess } from 'child_process';
 
 // Initialize electron store for persistent data
 const store = new Store();
@@ -9,6 +10,9 @@ const store = new Store();
 const isDev = process.env.ELECTRON_IS_DEV === 'true';
 
 let mainWindow: BrowserWindow;
+let backendProcess: ChildProcess | null = null;
+const BACKEND_PORT = 5000;
+const BACKEND_URL = `http://localhost:${BACKEND_PORT}`;
 
 function createWindow(): void {
   // Create the browser window
@@ -71,6 +75,15 @@ function createMenu(): void {
         },
         { type: 'separator' },
         {
+          label: 'Excel出品データ追加',
+          accelerator: 'CmdOrCtrl+E',
+          click: () => {
+            // This will be handled by the renderer process
+            mainWindow.webContents.send('show-excel-dialog');
+          }
+        },
+        { type: 'separator' },
+        {
           label: '終了',
           accelerator: process.platform === 'darwin' ? 'Cmd+Q' : 'Ctrl+Q',
           click: () => {
@@ -105,6 +118,29 @@ function createMenu(): void {
       ]
     },
     {
+      label: 'ツール',
+      submenu: [
+        {
+          label: 'バックエンドサーバー開始',
+          click: () => {
+            startBackendServer();
+          }
+        },
+        {
+          label: 'バックエンドサーバー停止',
+          click: () => {
+            stopBackendServer();
+          }
+        },
+        {
+          label: 'バックエンドサーバー状況確認',
+          click: () => {
+            checkBackendStatus();
+          }
+        }
+      ]
+    },
+    {
       label: 'ヘルプ',
       submenu: [
         {
@@ -126,6 +162,144 @@ function createMenu(): void {
   Menu.setApplicationMenu(menu);
 }
 
+// Backend server management
+async function startBackendServer(): Promise<boolean> {
+  if (backendProcess) {
+    console.log('Backend server is already running');
+    return true;
+  }
+
+  try {
+    const backendPath = path.join(__dirname, '..', 'backend');
+    const pythonExecutable = process.platform === 'win32' ? 'python' : 'python3';
+    
+    console.log('Starting backend server...');
+    backendProcess = spawn(pythonExecutable, ['wsgi.py'], {
+      cwd: backendPath,
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+
+    backendProcess.stdout?.on('data', (data) => {
+      console.log(`Backend stdout: ${data}`);
+    });
+
+    backendProcess.stderr?.on('data', (data) => {
+      console.error(`Backend stderr: ${data}`);
+    });
+
+    backendProcess.on('close', (code) => {
+      console.log(`Backend process exited with code ${code}`);
+      backendProcess = null;
+    });
+
+    // Wait a bit for the server to start
+    await new Promise(resolve => setTimeout(resolve, 3000));
+    
+    const isRunning = await checkBackendHealth();
+    if (isRunning) {
+      console.log('Backend server started successfully');
+      return true;
+    } else {
+      console.error('Backend server failed to start');
+      stopBackendServer();
+      return false;
+    }
+  } catch (error) {
+    console.error('Error starting backend server:', error);
+    return false;
+  }
+}
+
+function stopBackendServer(): void {
+  if (backendProcess) {
+    console.log('Stopping backend server...');
+    backendProcess.kill();
+    backendProcess = null;
+  }
+}
+
+async function checkBackendHealth(): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${BACKEND_URL}/health`, {
+      method: 'GET',
+      signal: controller.signal
+    });
+    
+    clearTimeout(timeoutId);
+    return response.ok;
+  } catch (error) {
+    return false;
+  }
+}
+
+async function checkBackendStatus(): Promise<void> {
+  const isRunning = await checkBackendHealth();
+  const status = isRunning ? 'バックエンドサーバーは動作中です' : 'バックエンドサーバーは停止中です';
+  
+  dialog.showMessageBox(mainWindow, {
+    type: 'info',
+    title: 'サーバー状況',
+    message: status,
+    detail: `URL: ${BACKEND_URL}`
+  });
+}
+
+// API calling functions
+async function makeApiCall(endpoint: string, method: string = 'GET', data?: any): Promise<any> {
+  try {
+    const url = `${BACKEND_URL}${endpoint}`;
+    const options: RequestInit = {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    };
+
+    if (data && method !== 'GET') {
+      options.body = JSON.stringify(data);
+    }
+
+    const response = await fetch(url, options);
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error('API call failed:', error);
+    throw error;
+  }
+}
+
+// Excel API functions
+async function addProductToExcel(productData: any): Promise<any> {
+  return makeApiCall('/excel/add-product', 'POST', productData);
+}
+
+async function addProductsBulk(products: any[]): Promise<any> {
+  return makeApiCall('/excel/add-products-bulk', 'POST', { products });
+}
+
+async function classifyProduct(productData: any): Promise<any> {
+  return makeApiCall('/excel/classify-product', 'POST', productData);
+}
+
+async function getSheetInfo(): Promise<any> {
+  return makeApiCall('/excel/sheet-info', 'GET');
+}
+
+async function testSampleData(): Promise<any> {
+  return makeApiCall('/excel/test-sample', 'POST');
+}
+
+async function getMappingPreview(productData: any): Promise<any> {
+  return makeApiCall('/excel/mapping-preview', 'POST', productData);
+}
+
 // IPC handlers
 ipcMain.handle('select-images', selectImages);
 ipcMain.handle('select-directory', selectDirectory);
@@ -134,6 +308,20 @@ ipcMain.handle('save-log-csv', saveLogCsv);
 ipcMain.handle('get-app-data', getAppData);
 ipcMain.handle('set-app-data', setAppData);
 ipcMain.handle('read-directory', readDirectory);
+
+// Backend API IPC handlers
+ipcMain.handle('start-backend-server', startBackendServer);
+ipcMain.handle('stop-backend-server', stopBackendServer);
+ipcMain.handle('check-backend-health', checkBackendHealth);
+ipcMain.handle('api-call', (event, endpoint, method, data) => makeApiCall(endpoint, method, data));
+
+// Excel API IPC handlers
+ipcMain.handle('excel-add-product', (event, productData) => addProductToExcel(productData));
+ipcMain.handle('excel-add-products-bulk', (event, products) => addProductsBulk(products));
+ipcMain.handle('excel-classify-product', (event, productData) => classifyProduct(productData));
+ipcMain.handle('excel-get-sheet-info', getSheetInfo);
+ipcMain.handle('excel-test-sample', testSampleData);
+ipcMain.handle('excel-mapping-preview', (event, productData) => getMappingPreview(productData));
 
 async function selectImages(): Promise<string[] | null> {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -257,8 +445,14 @@ async function readDirectory(event: any, directoryPath: string): Promise<{ files
 }
 
 // App event listeners
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   createWindow();
+  
+  // Auto-start backend server in production
+  if (!isDev) {
+    console.log('Auto-starting backend server...');
+    await startBackendServer();
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -268,9 +462,14 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  stopBackendServer(); // Clean up backend process
   if (process.platform !== 'darwin') {
     app.quit();
   }
+});
+
+app.on('before-quit', () => {
+  stopBackendServer(); // Ensure backend is stopped when app quits
 });
 
 // Security: Prevent new window creation (updated for newer Electron)

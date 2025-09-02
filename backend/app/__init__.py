@@ -22,8 +22,10 @@ def create_app():
     
     # Register blueprints
     from app.routes import image_routes
+    from app.routes import excel_routes
     
     app.register_blueprint(image_routes.bp)
+    app.register_blueprint(excel_routes.excel_bp)
     
     @app.after_request
     def add_headers(response):
