@@ -267,6 +267,9 @@ def format_listing_data(parsed_analysis: Dict[str, Any], product_id: str) -> Dic
         'size': parsed_analysis.get('size', ''),
         'material': parsed_analysis.get('material', ''),
         'title': parsed_analysis.get('title', ''),
+        'accessories': parsed_analysis.get('accessories', ''),
+        'tailoring_storage': parsed_analysis.get('tailoring_storage', ''),
+        'remaining_fabric': parsed_analysis.get('remaining_fabric', ''),
         'key_features': parsed_analysis.get('key_features', []),
         'confidence_scores': parsed_analysis.get('confidence_scores', {})
     }
@@ -307,12 +310,12 @@ def format_comprehensive_listing_data(parsed_analysis: Dict[str, Any], product_i
         'カテゴリ': '',  # To be filled based on product_type
         '管理番号': product_id,
         'タイトル': title,
-        '付属品': '',
+        '付属品': parsed_analysis.get('accessories', ''),
         'ラック': '',
         'ランク': '',
         '型番': official_name if found_in_db else model_number,  # Use official name or original model
         'コメント': '',
-        '仕立て・収納': '',
+        '仕立て・収納': parsed_analysis.get('tailoring_storage', ''),
         '素材': parsed_analysis.get('material', ''),
         '色': color,
         'サイズ': parsed_analysis.get('size', ''),
@@ -331,7 +334,7 @@ def format_comprehensive_listing_data(parsed_analysis: Dict[str, Any], product_i
         'バッグ': '',
         'ネックレス': '',
         'サングラス': '',
-        'あまり': '',
+        'あまり': parsed_analysis.get('remaining_fabric', ''),
         '出品日': '',
         '出品URL': '',
         '原価': '',
@@ -429,6 +432,13 @@ def analyze_single_image(image_path: str, metadata: Dict[str, str] = None) -> Di
 3. 色は具体的で正確な色名を使用し、必ず「系」をつけてください（例：ネイビー系、ベージュ系、オフホワイト系等）。複数の色がある場合は「赤系×グレー系 ボーダー」のように表現してください。
 4. 素材は画像から判断できる場合は具体的に記載してください。
 5. タイトルには管理番号を含めないでください。ブランド名、商品名、色、サイズのみを含めてください。
+6. 付属品の有無を確認してください（ベルト、ボタン、リボン、タグ等）。付属品がない場合は「無」と記載してください。
+7. 仕立て・収納情報を確認してください：
+   - スーツの場合：仕立ての種類（シングル、ダブル等）とポケットの数を記載
+   - その他の衣類：収納方法や仕立ての特徴があれば記載
+8. 袖あまり、ウエストあまり等の残布情報を確認してください：
+   - 丈つめ等で切った布の有無を確認
+   - 残布がある場合は「あり」、ない場合は「なし」と記載
 
 ブランド検出のヒント：
 - 衣類：タグ、ラベル、刺繍、プリント
@@ -440,7 +450,22 @@ def analyze_single_image(image_path: str, metadata: Dict[str, str] = None) -> Di
 サイズ検出のヒント：
 - 衣類：サイズタグ、洗濯表示タグ
 - 靴：インソール、箱、タグ
-- その他：製品ラベル、パッケージ、測定スケール"""
+- その他：製品ラベル、パッケージ、測定スケール
+
+付属品検出のヒント：
+- ベルト、ボタン、リボン、タグ、説明書等
+- 画像に付属品が写っているか確認
+- 付属品がない場合は「無」と記載
+
+仕立て・収納検出のヒント：
+- スーツ：シングル/ダブル仕立て、ポケット数
+- 収納方法：折りたたみ、ハンガー等
+- 仕立ての特徴：ダーツ、プリーツ等
+
+残布検出のヒント：
+- 丈つめ等で切った布の有無
+- 袖あまり、ウエストあまり等の残布
+- 画像から判断できない場合は「不明」と記載"""
 
     # Add metadata context if available
     brand = metadata.get('brand', '')
@@ -461,8 +486,11 @@ def analyze_single_image(image_path: str, metadata: Dict[str, str] = None) -> Di
 - product_type: 製品タイプ（例：Tシャツ、スニーカー、バッグ等）
 - material: 素材（判断可能な場合、不明な場合は"不明"）
 - size: サイズ（必ず画像から検出を試みる、不明な場合は"不明"）
+- accessories: 付属品（ベルト、ボタン、リボン等。付属品がない場合は"無"、不明な場合は"不明"）
+- tailoring_storage: 仕立て・収納（スーツの仕立て種類とポケット数、収納方法等。不明な場合は"不明"）
+- remaining_fabric: 残布（袖あまり、ウエストあまり等。残布がある場合は"あり"、ない場合は"なし"、不明な場合は"不明"）
 - key_features: 主な特徴（配列形式）
-- confidence_scores: 各項目の確信度（brand_confidence, size_confidence, color_confidence）
+- confidence_scores: 各項目の確信度（brand_confidence, size_confidence, color_confidence, accessories_confidence, tailoring_confidence, fabric_confidence）
 
 JSONフォーマットのみで回答し、マークダウンやコードブロック（```）は使用しないでください。"""
     
@@ -545,6 +573,9 @@ JSONフォーマットのみで回答し、マークダウンやコードブロ�
             "product_type": "不明",
             "material": "不明",
             "size": "不明",
+            "accessories": "不明",
+            "tailoring_storage": "不明",
+            "remaining_fabric": "不明",
             "raw_text": cleaned_analysis,
             "parse_error": "Failed to parse response as JSON"
         }
@@ -577,6 +608,13 @@ def analyze_images(image_paths: List[str], metadata: Dict[str, str] = None) -> D
 5. 素材は画像から判断できる場合は具体的に記載してください。
 6. タイトルには管理番号を含めないでください。ブランド名、商品名、色、サイズのみを含めてください。
 7. 複数の画像がある場合は、すべての画像を総合的に分析して一つの商品として情報を抽出してください。
+8. 付属品の有無を確認してください（ベルト、ボタン、リボン、タグ等）。付属品がない場合は「無」と記載してください。
+9. 仕立て・収納情報を確認してください：
+   - スーツの場合：仕立ての種類（シングル、ダブル等）とポケットの数を記載
+   - その他の衣類：収納方法や仕立ての特徴があれば記載
+10. 袖あまり、ウエストあまり等の残布情報を確認してください：
+    - 丈つめ等で切った布の有無を確認
+    - 残布がある場合は「あり」、ない場合は「なし」と記載
 
 ブランド検出のヒント：
 - 衣類：タグ、ラベル、刺繍、プリント
@@ -594,7 +632,22 @@ def analyze_images(image_paths: List[str], metadata: Dict[str, str] = None) -> D
 サイズ検出のヒント：
 - 衣類：サイズタグ、洗濯表示タグ
 - 靴：インソール、箱、タグ
-- その他：製品ラベル、パッケージ、測定スケール"""
+- その他：製品ラベル、パッケージ、測定スケール
+
+付属品検出のヒント：
+- ベルト、ボタン、リボン、タグ、説明書等
+- 画像に付属品が写っているか確認
+- 付属品がない場合は「無」と記載
+
+仕立て・収納検出のヒント：
+- スーツ：シングル/ダブル仕立て、ポケット数
+- 収納方法：折りたたみ、ハンガー等
+- 仕立ての特徴：ダーツ、プリーツ等
+
+残布検出のヒント：
+- 丈つめ等で切った布の有無
+- 袖あまり、ウエストあまり等の残布
+- 画像から判断できない場合は「不明」と記載"""
 
     # Add metadata context if available
     brand = metadata.get('brand', '')
@@ -620,8 +673,11 @@ def analyze_images(image_paths: List[str], metadata: Dict[str, str] = None) -> D
 - product_type: 製品タイプ（例：Tシャツ、スニーカー、バッグ等）
 - material: 素材（判断可能な場合、不明な場合は"不明"）
 - size: サイズ（必ず画像から検出を試みる、不明な場合は"不明"）
+- accessories: 付属品（ベルト、ボタン、リボン等。付属品がない場合は"無"、不明な場合は"不明"）
+- tailoring_storage: 仕立て・収納（スーツの仕立て種類とポケット数、収納方法等。不明な場合は"不明"）
+- remaining_fabric: 残布（袖あまり、ウエストあまり等。残布がある場合は"あり"、ない場合は"なし"、不明な場合は"不明"）
 - key_features: 主な特徴（配列形式）
-- confidence_scores: 各項目の確信度（brand_confidence, size_confidence, color_confidence, model_confidence）
+- confidence_scores: 各項目の確信度（brand_confidence, size_confidence, color_confidence, model_confidence, accessories_confidence, tailoring_confidence, fabric_confidence）
 
 JSONフォーマットのみで回答し、マークダウンやコードブロック（```）は使用しないでください。"""
     
@@ -762,7 +818,10 @@ JSONフォーマットのみで回答し、マークダウンやコードブロ�
                 'color': '不明',
                 'size': '不明',
                 'material': '不明',
-                'title': fallback_title
+                'title': fallback_title,
+                'accessories': '不明',
+                'tailoring_storage': '不明',
+                'remaining_fabric': '不明'
             }
             
             # Create comprehensive listing data for fallback
@@ -772,7 +831,10 @@ JSONフォーマットのみで回答し、マークダウンやコードブロ�
                 'color': '不明',
                 'size': '不明',
                 'material': '不明',
-                'title': fallback_title
+                'title': fallback_title,
+                'accessories': '不明',
+                'tailoring_storage': '不明',
+                'remaining_fabric': '不明'
             }, product_id)
             
             marketplace_variants = generate_marketplace_variants(fallback_title, formatted_data)
@@ -787,15 +849,15 @@ JSONフォーマットのみで回答し、マークダウンやコードブロ�
                     "product_type": "不明",
                     "material": "不明",
                     "size": "不明",
-                    "raw_text": cleaned_analysis,
-                    "parse_error": "Failed to parse response as JSON"
+                    "error": str(e)
                 },
                 "formatted_data": formatted_data,
                 "comprehensive_listing_data": comprehensive_listing_data,
                 "marketplace_variants": marketplace_variants,
                 "title_validation": title_validation,
                 "data_quality": data_quality,
-                "status": "success"
+                "status": "error",
+                "error": str(e)
             }
             
     except Exception as e:
@@ -812,7 +874,10 @@ JSONフォーマットのみで回答し、マークダウンやコードブロ�
             'color': '不明',
             'size': '不明',
             'material': '不明',
-            'title': fallback_title
+            'title': fallback_title,
+            'accessories': '不明',
+            'tailoring_storage': '不明',
+            'remaining_fabric': '不明'
         }
         
         # Create comprehensive listing data for fallback
@@ -822,7 +887,10 @@ JSONフォーマットのみで回答し、マークダウンやコードブロ�
             'color': '不明',
             'size': '不明',
             'material': '不明',
-            'title': fallback_title
+            'title': fallback_title,
+            'accessories': '不明',
+            'tailoring_storage': '不明',
+            'remaining_fabric': '不明'
         }, product_id)
         
         marketplace_variants = generate_marketplace_variants(fallback_title, formatted_data)

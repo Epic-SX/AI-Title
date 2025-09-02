@@ -1199,6 +1199,9 @@ export default function Home() {
                 product_type: "不明",
                 material: "不明",
                 size: "不明",
+                accessories: "不明",
+                tailoring_storage: "不明",
+                remaining_fabric: "不明",
                 key_features: []
               };
             }
@@ -1217,6 +1220,9 @@ export default function Home() {
             product_type: "不明",
             material: "不明",
             size: "不明",
+            accessories: "不明",
+            tailoring_storage: "不明",
+            remaining_fabric: "不明",
             key_features: []
           };
           
@@ -1246,6 +1252,9 @@ export default function Home() {
               model: formData.model_number || "",
               product_type: product.product_type || "不明",
               size: product.size || "不明",
+              accessories: product.accessories || "不明",
+              tailoring_storage: product.tailoring_storage || "不明",
+              remaining_fabric: product.remaining_fabric || "不明",
               keywords: [],
               product_features: Array.isArray(product.key_features) ? product.key_features : []
             };
@@ -1269,6 +1278,9 @@ export default function Home() {
               product_type: firstProduct.product_type || "不明",
               material: firstProduct.material || "不明",
               size: firstProduct.size || formData.size || "不明",
+              accessories: firstProduct.accessories || "不明",
+              tailoring_storage: firstProduct.tailoring_storage || "不明",
+              remaining_fabric: firstProduct.remaining_fabric || "不明",
               key_features: Array.isArray(firstProduct.key_features) ? firstProduct.key_features : []
             },
           };
@@ -1298,6 +1310,9 @@ export default function Home() {
               product_type: rawResponse?.product_type || "不明",
               material: rawResponse?.material || "不明",
               size: rawResponse?.size || formData.size || "不明",
+              accessories: rawResponse?.accessories || "不明",
+              tailoring_storage: rawResponse?.tailoring_storage || "不明",
+              remaining_fabric: rawResponse?.remaining_fabric || "不明",
               key_features: Array.isArray(rawResponse?.key_features) ? rawResponse.key_features : []
             },
           };
@@ -1310,6 +1325,9 @@ export default function Home() {
               model: formData.model_number || "",
               product_type: rawResponse.product_type || "不明",
               size: rawResponse.size || "不明",
+              accessories: rawResponse.accessories || "不明",
+              tailoring_storage: rawResponse.tailoring_storage || "不明",
+              remaining_fabric: rawResponse.remaining_fabric || "不明",
               keywords: [],
               product_features: rawResponse.key_features
             });
