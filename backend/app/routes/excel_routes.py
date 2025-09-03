@@ -258,4 +258,193 @@ def get_mapping_preview():
         return jsonify({
             'success': False,
             'message': f'Error generating mapping preview: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/save-file', methods=['POST'])
+def save_excel_file():
+    """
+    Save the current Excel file to a specified location.
+    """
+    try:
+        data = request.get_json()
+        target_path = data.get('target_path')
+        
+        if not target_path:
+            return jsonify({
+                'success': False,
+                'message': 'Target path is required'
+            }), 400
+        
+        # Copy the current Excel file to the target location
+        import shutil
+        try:
+            shutil.copy2(excel_service.excel_file_path, target_path)
+            return jsonify({
+                'success': True,
+                'message': f'Excel file saved successfully to {target_path}',
+                'target_path': target_path
+            })
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'message': f'Failed to save Excel file: {str(e)}'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Unexpected error: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/export-to-excel', methods=['POST'])
+def export_to_excel():
+    """
+    Export processed results to Excel file with proper sheet classification.
+    """
+    try:
+        print("🚀 Export to Excel endpoint called")
+        data = request.get_json()
+        print(f"📊 Received data keys: {list(data.keys()) if data else 'None'}")
+        
+        if not data or 'processed_results' not in data:
+            print("❌ No processed results provided in request")
+            return jsonify({
+                'success': False,
+                'message': 'No processed results provided'
+            }), 400
+        
+        processed_results = data['processed_results']
+        print(f"📊 Processed results type: {type(processed_results)}")
+        print(f"📊 Processed results count: {len(processed_results) if processed_results else 0}")
+        
+        if not isinstance(processed_results, dict):
+            print(f"❌ Expected dict, got {type(processed_results)}")
+            return jsonify({
+                'success': False,
+                'message': 'Processed results must be a dictionary'
+            }), 400
+        
+        # Convert processed results to Excel format
+        products_to_add = []
+        success_count = 0
+        error_count = 0
+        errors = []
+        
+        for product_id, result in processed_results.items():
+            try:
+                # Extract the data from the result structure
+                if isinstance(result, dict) and 'listing_data' in result:
+                    listing_data = result['listing_data']
+                else:
+                    # Fallback to using result directly
+                    listing_data = result
+                
+                # Convert the listing data to the format expected by the Excel service
+                excel_data = {
+                    "カテゴリ": listing_data.get('カテゴリ', ''),
+                    "管理番号": listing_data.get('管理番号', product_id),
+                    "タイトル": listing_data.get('タイトル', ''),
+                    "文字数": len(listing_data.get('タイトル', '')),
+                    "付属品": listing_data.get('付属品', ''),
+                    "ランク": listing_data.get('ランク', ''),
+                    "コメント": listing_data.get('コメント', ''),
+                    "素材": listing_data.get('素材', ''),
+                    "色": listing_data.get('色', ''),
+                    "サイズ": listing_data.get('サイズ', ''),
+                    "着丈": listing_data.get('着丈') or None,
+                    "　肩幅": listing_data.get('肩幅') or listing_data.get('　肩幅') or None,
+                    "身幅": listing_data.get('身幅') or None,
+                    "袖丈": listing_data.get('袖丈') or None,
+                    "梱包サイズ": listing_data.get('梱包サイズ', ''),
+                    "梱包記号": listing_data.get('梱包記号', ''),
+                    "美品": listing_data.get('美品', ''),
+                    "ブランド": listing_data.get('ブランド', ''),
+                    "フリー": listing_data.get('フリー', ''),
+                    "袖": listing_data.get('袖', ''),
+                    "もの": listing_data.get('もの', ''),
+                    "男女": listing_data.get('男女', ''),
+                    "採寸1": listing_data.get('採寸1', ''),
+                    "ラック": listing_data.get('ラック', ''),
+                    "金額": listing_data.get('金額') or listing_data.get('売値') or None,
+                    # Additional fields that might be present
+                    "股上": listing_data.get('股上') or None,
+                    "股下": listing_data.get('股下') or None,
+                    "ウエスト": listing_data.get('ウエスト') or None,
+                    "もも幅": listing_data.get('もも幅') or None,
+                    "裾幅": listing_data.get('裾幅') or None,
+                    "総丈": listing_data.get('総丈') or None,
+                    "ヒップ": listing_data.get('ヒップ') or None,
+                    "仕入先": listing_data.get('仕入先', ''),
+                    "仕入日": listing_data.get('仕入日', ''),
+                    "原価": listing_data.get('原価') or None
+                }
+                
+                products_to_add.append(excel_data)
+                
+            except Exception as e:
+                error_count += 1
+                errors.append(f"Product {product_id}: {str(e)}")
+                continue
+        
+        if not products_to_add:
+            return jsonify({
+                'success': False,
+                'message': 'No valid products to add to Excel',
+                'errors': errors
+            }), 400
+        
+        # Use bulk add functionality
+        added_count, failed_count, add_errors = excel_service.bulk_add_data(products_to_add)
+        
+        return jsonify({
+            'success': True,
+            'summary': {
+                'total_processed': len(processed_results),
+                'products_converted': len(products_to_add),
+                'successfully_added': added_count,
+                'failed_to_add': failed_count,
+                'conversion_errors': error_count
+            },
+            'errors': errors + add_errors if errors or add_errors else None,
+            'message': f'Successfully added {added_count} products to Excel'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Unexpected error: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/file-info', methods=['GET'])
+def get_excel_file_info():
+    """
+    Get information about the current Excel file.
+    """
+    try:
+        file_path = excel_service.excel_file_path
+        
+        if not os.path.exists(file_path):
+            return jsonify({
+                'success': False,
+                'message': f'Excel file not found: {file_path}'
+            }), 404
+        
+        # Get file stats
+        file_stats = os.stat(file_path)
+        import datetime
+        
+        return jsonify({
+            'success': True,
+            'file_info': {
+                'path': file_path,
+                'size': file_stats.st_size,
+                'modified': datetime.datetime.fromtimestamp(file_stats.st_mtime).isoformat(),
+                'exists': True
+            }
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error getting file info: {str(e)}'
         }), 500 

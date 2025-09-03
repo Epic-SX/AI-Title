@@ -836,125 +836,170 @@ function BatchProcessing() {
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={() => {
+                    onClick={async () => {
                       const successResults = Object.entries(processingStatus.results)
                         .filter(([, result]: [string, any]) => result.status === 'success');
                       
-                      // Define comprehensive CSV headers matching the listing format
-                      const csvHeaders = 'カテゴリ,管理番号,タイトル,付属品,ラック,ランク,型番,コメント,仕立て・収納,素材,色,サイズ,トップス,パンツ,スカート,ワンピース,スカートスーツ,パンツスーツ,靴,ブーツ,スニーカー,ベルト,ネクタイ縦横,帽子,バッグ,ネックレス,サングラス,あまり,出品日,出品URL,原価,売値,梱包サイズ,仕入先,仕入日,ID,ブランド,シリーズ名,原産国\n';
-                      
-                      const csvContent = successResults
-                        .map(([productId, result]: [string, any]) => {
-                          // Use comprehensive listing data if available, otherwise create from basic data
-                          let listingData;
-                          if (result.macro_data && result.macro_data.comprehensive_listing_data) {
-                            listingData = result.macro_data.comprehensive_listing_data;
+                      // Check if running in Electron
+                      if (typeof window !== 'undefined' && (window as any).electronAPI) {
+                        try {
+                          console.log('🔍 Electron detected: Using Excel export instead of CSV');
+                          console.log('📋 ElectronAPI object:', (window as any).electronAPI);
+                          console.log('📋 Excel functions available:', (window as any).electronAPI.excel);
+                          
+                          // Transform results for Excel export - use the same format as the full results
+                          const processedResults = successResults.reduce((acc, [productId, result]: [string, any]) => {
+                            acc[productId] = result;
+                            return acc;
+                          }, {} as Record<string, any>);
+                          
+                          console.log(`📊 Exporting ${Object.keys(processedResults).length} products to Excel...`);
+                          console.log('📊 Sample processed result:', Object.values(processedResults)[0]);
+                          
+                          // Call Excel export function
+                          const result = await (window as any).electronAPI.excel.exportProcessedResults(processedResults);
+                          
+                          if (result.success) {
+                            console.log('✅ Excel export successful:', result);
+                            
+                            // Now save the Excel file
+                            const saveResult = await (window as any).electronAPI.excel.saveFileAs();
+                            
+                            if (saveResult) {
+                              alert(`✅ 成功!\nPL出品マクロ.xlsm にデータを追加し、${saveResult} に保存しました。\n\n詳細:\n- 処理数: ${result.summary?.total_processed || 'N/A'}\n- 変換済: ${result.summary?.products_converted || 'N/A'}\n- 追加成功: ${result.summary?.successfully_added || 'N/A'}\n- 追加失敗: ${result.summary?.failed_to_add || 'N/A'}`);
+                            } else {
+                              alert(`✅ 成功!\nPL出品マクロ.xlsm にデータを追加しました（保存はキャンセルされました）。\n\n詳細:\n- 処理数: ${result.summary?.total_processed || 'N/A'}\n- 変換済: ${result.summary?.products_converted || 'N/A'}\n- 追加成功: ${result.summary?.successfully_added || 'N/A'}\n- 追加失敗: ${result.summary?.failed_to_add || 'N/A'}`);
+                            }
                           } else {
-                            // Create comprehensive data from available fields
-                            listingData = {
-                              'カテゴリ': '',
-                              '管理番号': productId,
-                              'タイトル': result.title || '',
-                              '付属品': '',
-                              'ラック': '',
-                              'ランク': '',
-                              '型番': '',
-                              'コメント': '',
-                              '仕立て・収納': '',
-                              '素材': result.macro_data?.material || '',
-                              '色': result.detected_color || '',
-                              'サイズ': result.detected_size || '',
-                              'トップス': '',
-                              'パンツ': '',
-                              'スカート': '',
-                              'ワンピース': '',
-                              'スカートスーツ': '',
-                              'パンツスーツ': '',
-                              '靴': '',
-                              'ブーツ': '',
-                              'スニーカー': '',
-                              'ベルト': '',
-                              'ネクタイ縦横': '',
-                              '帽子': '',
-                              'バッグ': '',
-                              'ネックレス': '',
-                              'サングラス': '',
-                              'あまり': '',
-                              '出品日': '',
-                              '出品URL': '',
-                              '原価': '',
-                              '売値': '',
-                              '梱包サイズ': '',
-                              '仕入先': '',
-                              '仕入日': '',
-                              'ID': productId,
-                              'ブランド': result.detected_brand || '',
-                              'シリーズ名': '',
-                              '原産国': ''
-                            };
+                            alert(`❌ エラー: Excel保存に失敗しました - ${result.message}`);
+                            console.error('❌ Excel export failed:', result);
                           }
                           
-                          // Format the row according to the header order
-                          return [
-                            listingData['カテゴリ'] || '',
-                            listingData['管理番号'] || '',
-                            listingData['タイトル'] || '',
-                            listingData['付属品'] || '',
-                            listingData['ラック'] || '',
-                            listingData['ランク'] || '',
-                            listingData['型番'] || '',
-                            listingData['コメント'] || '',
-                            listingData['仕立て・収納'] || '',
-                            listingData['素材'] || '',
-                            listingData['色'] || '',
-                            listingData['サイズ'] || '',
-                            listingData['トップス'] || '',
-                            listingData['パンツ'] || '',
-                            listingData['スカート'] || '',
-                            listingData['ワンピース'] || '',
-                            listingData['スカートスーツ'] || '',
-                            listingData['パンツスーツ'] || '',
-                            listingData['靴'] || '',
-                            listingData['ブーツ'] || '',
-                            listingData['スニーカー'] || '',
-                            listingData['ベルト'] || '',
-                            listingData['ネクタイ縦横'] || '',
-                            listingData['帽子'] || '',
-                            listingData['バッグ'] || '',
-                            listingData['ネックレス'] || '',
-                            listingData['サングラス'] || '',
-                            listingData['あまり'] || '',
-                            listingData['出品日'] || '',
-                            listingData['出品URL'] || '',
-                            listingData['原価'] || '',
-                            listingData['売値'] || '',
-                            listingData['梱包サイズ'] || '',
-                            listingData['仕入先'] || '',
-                            listingData['仕入日'] || '',
-                            listingData['ID'] || '',
-                            listingData['ブランド'] || '',
-                            listingData['シリーズ名'] || '',
-                            listingData['原産国'] || ''
-                          ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',');
-                        })
-                        .join('\n');
-                      
-                      // Add UTF-8 BOM to ensure proper Japanese character display
-                      const BOM = '\uFEFF';
-                      const csvWithBOM = BOM + csvHeaders + csvContent;
-                      
-                      const blob = new Blob([csvWithBOM], { 
-                        type: 'text/csv;charset=utf-8;' 
-                      });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `comprehensive_listing_${new Date().toISOString().split('T')[0]}.csv`;
-                      a.click();
-                      URL.revokeObjectURL(url);
+                        } catch (error) {
+                          console.error('❌ Excel export error:', error);
+                          alert(`❌ エラー: Excel保存に失敗しました - ${(error as Error).message}`);
+                        }
+                        
+                      } else {
+                        // Fallback to CSV export for web browser
+                        console.log('🌐 Web browser detected: Using CSV export');
+                        
+                        // Define comprehensive CSV headers matching the listing format
+                        const csvHeaders = 'カテゴリ,管理番号,タイトル,付属品,ラック,ランク,型番,コメント,仕立て・収納,素材,色,サイズ,トップス,パンツ,スカート,ワンピース,スカートスーツ,パンツスーツ,靴,ブーツ,スニーカー,ベルト,ネクタイ縦横,帽子,バッグ,ネックレス,サングラス,あまり,出品日,出品URL,原価,売値,梱包サイズ,仕入先,仕入日,ID,ブランド,シリーズ名,原産国\n';
+                        
+                        const csvContent = successResults
+                          .map(([productId, result]: [string, any]) => {
+                            // Use comprehensive listing data if available, otherwise create from basic data
+                            let listingData;
+                            if (result.macro_data && result.macro_data.comprehensive_listing_data) {
+                              listingData = result.macro_data.comprehensive_listing_data;
+                            } else {
+                              // Create comprehensive data from available fields
+                              listingData = {
+                                'カテゴリ': '',
+                                '管理番号': productId,
+                                'タイトル': result.title || '',
+                                '付属品': '',
+                                'ラック': '',
+                                'ランク': '',
+                                '型番': '',
+                                'コメント': '',
+                                '仕立て・収納': '',
+                                '素材': result.macro_data?.material || '',
+                                '色': result.detected_color || '',
+                                'サイズ': result.detected_size || '',
+                                'トップス': '',
+                                'パンツ': '',
+                                'スカート': '',
+                                'ワンピース': '',
+                                'スカートスーツ': '',
+                                'パンツスーツ': '',
+                                '靴': '',
+                                'ブーツ': '',
+                                'スニーカー': '',
+                                'ベルト': '',
+                                'ネクタイ縦横': '',
+                                '帽子': '',
+                                'バッグ': '',
+                                'ネックレス': '',
+                                'サングラス': '',
+                                'あまり': '',
+                                '出品日': '',
+                                '出品URL': '',
+                                '原価': '',
+                                '売値': '',
+                                '梱包サイズ': '',
+                                '仕入先': '',
+                                '仕入日': '',
+                                'ID': productId,
+                                'ブランド': result.detected_brand || '',
+                                'シリーズ名': '',
+                                '原産国': ''
+                              };
+                            }
+                            
+                            // Format the row according to the header order
+                            return [
+                              listingData['カテゴリ'] || '',
+                              listingData['管理番号'] || '',
+                              listingData['タイトル'] || '',
+                              listingData['付属品'] || '',
+                              listingData['ラック'] || '',
+                              listingData['ランク'] || '',
+                              listingData['型番'] || '',
+                              listingData['コメント'] || '',
+                              listingData['仕立て・収納'] || '',
+                              listingData['素材'] || '',
+                              listingData['色'] || '',
+                              listingData['サイズ'] || '',
+                              listingData['トップス'] || '',
+                              listingData['パンツ'] || '',
+                              listingData['スカート'] || '',
+                              listingData['ワンピース'] || '',
+                              listingData['スカートスーツ'] || '',
+                              listingData['パンツスーツ'] || '',
+                              listingData['靴'] || '',
+                              listingData['ブーツ'] || '',
+                              listingData['スニーカー'] || '',
+                              listingData['ベルト'] || '',
+                              listingData['ネクタイ縦横'] || '',
+                              listingData['帽子'] || '',
+                              listingData['バッグ'] || '',
+                              listingData['ネックレス'] || '',
+                              listingData['サングラス'] || '',
+                              listingData['あまり'] || '',
+                              listingData['出品日'] || '',
+                              listingData['出品URL'] || '',
+                              listingData['原価'] || '',
+                              listingData['売値'] || '',
+                              listingData['梱包サイズ'] || '',
+                              listingData['仕入先'] || '',
+                              listingData['仕入日'] || '',
+                              listingData['ID'] || '',
+                              listingData['ブランド'] || '',
+                              listingData['シリーズ名'] || '',
+                              listingData['原産国'] || ''
+                            ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',');
+                          })
+                          .join('\n');
+                        
+                        // Add UTF-8 BOM to ensure proper Japanese character display
+                        const BOM = '\uFEFF';
+                        const csvWithBOM = BOM + csvHeaders + csvContent;
+                        
+                        const blob = new Blob([csvWithBOM], { 
+                          type: 'text/csv;charset=utf-8;' 
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `comprehensive_listing_${new Date().toISOString().split('T')[0]}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }
                     }}
                   >
-                    CSVエクスポート（出品フォーマット）
+                    {typeof window !== 'undefined' && (window as any).electronAPI ? 'PL出品マクロ.xlsmに保存' : 'CSVエクスポート（出品フォーマット）'}
                   </Button>
                 </div>
               </div>

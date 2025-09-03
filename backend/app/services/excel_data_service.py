@@ -10,8 +10,14 @@ import re
 import os
 
 class ExcelDataService:
-    def __init__(self, excel_file_path: str = "PL出品マクロ.xlsm"):
+    def __init__(self, excel_file_path: str = None):
+        if excel_file_path is None:
+            # Use absolute path relative to this file's directory
+            current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            excel_file_path = os.path.join(current_dir, "PL出品マクロ.xlsm")
         self.excel_file_path = excel_file_path
+        print(f"📊 Excel file path: {self.excel_file_path}")
+        print(f"📊 Excel file exists: {os.path.exists(self.excel_file_path)}")
         
         # Category classification keywords
         self.category_keywords = {
@@ -249,7 +255,9 @@ class ExcelDataService:
             measurement_text = self.generate_measurement_text(data, target_sheet)
             if measurement_text:
                 mapped_data['採寸1'] = measurement_text
-                mapped_data['採寸2'] = measurement_text
+                # Only set 採寸2 if it doesn't already have data
+                if not mapped_data.get('採寸2'):
+                    mapped_data['採寸2'] = measurement_text
             
             # Load workbook with macros preserved
             book = load_workbook(self.excel_file_path, keep_vba=True)

@@ -833,6 +833,98 @@ function App() {
       return;
     }
 
+    // Check if we're in Electron environment and use Excel export
+    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+      try {
+        console.log('🔍 Electron detected: Using Excel export instead of CSV');
+        console.log('📋 ElectronAPI object:', (window as any).electronAPI);
+        console.log('📋 Excel functions available:', (window as any).electronAPI.excel);
+        console.log('📊 Number of successful results to export:', successResults.length);
+        
+        // Transform results for Excel export - convert to the format expected by backend
+        const processedResults: Record<string, any> = {};
+        
+        successResults.forEach(([productId, result]: [string, any]) => {
+          // Create listing_data structure that the backend expects
+          const listingData = {
+            'カテゴリ': result.category || '',
+            '管理番号': productId,
+            'タイトル': result.title || '',
+            '文字数': result.title ? result.title.length : 0,
+            '付属品': result.accessories || '無',
+            'ランク': result.rank || '3',
+            'コメント': result.condition_comment || 'ほぼ新品',
+            '素材': result.material || '画像参照',
+            '色': result.color || result.detected_color || '不明',
+            'サイズ': result.size || result.detected_size || '不明',
+            '梱包サイズ': result.packaging_size || '通常',
+            '梱包記号': result.packaging_symbol || '◇',
+            '美品': result.excellent_condition || '',
+            'ブランド': result.brand || result.detected_brand || '不明',
+            'フリー': Array.isArray(result.key_features) ? result.key_features.join('、') : (result.key_features || ''),
+            '袖': result.sleeve_type || '',
+            'もの': result.product_type || result.item_type || '不明',
+            '男女': result.gender || 'レディースメンズ',
+            '採寸1': result.measurement_text || '',
+            'ラック': result.rack_location || 'ベースW/26',
+            '金額': result.price || result.amount || 0,
+            // Measurement fields
+            '着丈': result.measurements?.garment_length || result.measurements?.着丈 || null,
+            '　肩幅': result.measurements?.shoulder_width || result.measurements?.肩幅 || null,
+            '身幅': result.measurements?.chest_width || result.measurements?.身幅 || null,
+            '袖丈': result.measurements?.sleeve_length || result.measurements?.袖丈 || null,
+            '股上': result.measurements?.rise || result.measurements?.股上 || null,
+            '股下': result.measurements?.inseam || result.measurements?.股下 || null,
+            'ウエスト': result.measurements?.waist || result.measurements?.ウエスト || null,
+            'もも幅': result.measurements?.thigh_width || result.measurements?.もも幅 || null,
+            '裾幅': result.measurements?.hem_width || result.measurements?.裾幅 || null,
+            '総丈': result.measurements?.total_length || result.measurements?.総丈 || null,
+            'ヒップ': result.measurements?.hip || result.measurements?.ヒップ || null,
+            '仕入先': '',
+            '仕入日': '',
+            '原価': ''
+          };
+          
+          // Wrap in the structure expected by backend (with listing_data)
+          processedResults[productId] = {
+            status: 'success',
+            listing_data: listingData
+          };
+        });
+        
+        console.log(`📊 Exporting ${Object.keys(processedResults).length} products to Excel...`);
+        console.log('📊 Sample processed result:', Object.values(processedResults)[0]);
+        
+        // Call Excel export function
+        const result = await (window as any).electronAPI.excel.exportProcessedResults(processedResults);
+        
+        if (result && result.success) {
+          console.log('✅ Excel export successful:', result);
+          
+          // Now save the Excel file
+          const saveResult = await (window as any).electronAPI.excel.saveFileAs();
+          
+          if (saveResult) {
+            alert(`✅ 成功!\nPL出品マクロ.xlsm にデータを追加し、${saveResult} に保存しました。\n\n詳細:\n- 処理数: ${result.summary?.total_processed || 'N/A'}\n- 変換済: ${result.summary?.products_converted || 'N/A'}\n- 追加成功: ${result.summary?.successfully_added || 'N/A'}\n- 追加失敗: ${result.summary?.failed_to_add || 'N/A'}`);
+          } else {
+            alert(`✅ 成功!\nPL出品マクロ.xlsm にデータを追加しました（保存はキャンセルされました）。\n\n詳細:\n- 処理数: ${result.summary?.total_processed || 'N/A'}\n- 変換済: ${result.summary?.products_converted || 'N/A'}\n- 追加成功: ${result.summary?.successfully_added || 'N/A'}\n- 追加失敗: ${result.summary?.failed_to_add || 'N/A'}`);
+          }
+        } else {
+          alert(`❌ エラー: Excel保存に失敗しました - ${result?.message || '不明なエラー'}`);
+          console.error('❌ Excel export failed:', result);
+        }
+        
+      } catch (error) {
+        console.error('❌ Excel export error:', error);
+        alert(`❌ エラー: Excel保存に失敗しました - ${(error as Error).message}`);
+      }
+      
+      return; // Exit early for Electron Excel export
+    }
+
+    // Fallback to CSV export for web browsers
+    console.log('🌐 Web browser detected: Using CSV export');
+
     // Define comprehensive CSV headers matching the original frontend listing format
     const csvHeaders = 'カテゴリ,管理番号,タイトル,付属品,ラック,ランク,型番,コメント,仕立て・収納,素材,色,サイズ,トップス,パンツ,スカート,ワンピース,スカートスーツ,パンツスーツ,靴,ブーツ,スニーカー,ベルト,ネクタイ縦横,帽子,バッグ,ネックレス,サングラス,あまり,出品日,出品URL,原価,売値,梱包サイズ,仕入先,仕入日,ID,ブランド,シリーズ名,原産国\n';
     
@@ -1247,12 +1339,21 @@ function App() {
                         className="w-full max-w-[400px] bg-blue-600 hover:bg-blue-700"
                       >
                         <Download className="w-4 h-4 mr-2" />
-                        全商品一括CSVエクスポート（出品フォーマット）
+                        {typeof window !== 'undefined' && (window as any).electronAPI ? 'PL出品マクロ.xlsmに保存' : '全商品一括CSVエクスポート（出品フォーマット）'}
                       </Button>
                     </div>
                     <p className="text-xs text-gray-500 text-center">
-                      ※ 成功した全商品のデータを一括でCSVファイルにエクスポートします<br/>
-                      ※ 出品フォーマット（39列）に対応したファイルが生成されます
+                      {typeof window !== 'undefined' && (window as any).electronAPI ? (
+                        <>
+                          ※ 成功した全商品のデータをPL出品マクロ.xlsmファイルに追加します<br/>
+                          ※ 商品は自動的に適切なシート（トップス、パンツ等）に分類されます
+                        </>
+                      ) : (
+                        <>
+                          ※ 成功した全商品のデータを一括でCSVファイルにエクスポートします<br/>
+                          ※ 出品フォーマット（39列）に対応したファイルが生成されます
+                        </>
+                      )}
                     </p>
                   </div>
 
