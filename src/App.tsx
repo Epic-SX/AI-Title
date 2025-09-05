@@ -833,13 +833,14 @@ function App() {
       return;
     }
 
-    // Check if we're in Electron environment and use Excel export
-    if (typeof window !== 'undefined' && (window as any).electronAPI) {
+    // Use Excel export for all environments
+    {
       try {
-        console.log('🔍 Electron detected: Using Excel export instead of CSV');
-        console.log('📋 ElectronAPI object:', (window as any).electronAPI);
-        console.log('📋 Excel functions available:', (window as any).electronAPI.excel);
+        console.log('🔍 Using Excel export for all products');
         console.log('📊 Number of successful results to export:', successResults.length);
+        
+        // Show loading state
+        const loadingAlert = alert('🔄 Excelファイルにデータを追加中...\nこの処理には数分かかる場合があります。\n処理中はこのダイアログを閉じないでください。');
         
         // Transform results for Excel export - convert to the format expected by backend
         const processedResults: Record<string, any> = {};
@@ -895,153 +896,86 @@ function App() {
         console.log(`📊 Exporting ${Object.keys(processedResults).length} products to Excel...`);
         console.log('📊 Sample processed result:', Object.values(processedResults)[0]);
         
-        // Call Excel export function
-        const result = await (window as any).electronAPI.excel.exportProcessedResults(processedResults);
+        // Create AbortController for timeout handling
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000); // 5 minutes timeout
         
-        if (result && result.success) {
-          console.log('✅ Excel export successful:', result);
-          
-          // Now save the Excel file
-          const saveResult = await (window as any).electronAPI.excel.saveFileAs();
-          
-          if (saveResult) {
-            alert(`✅ 成功!\nPL出品マクロ.xlsm にデータを追加し、${saveResult} に保存しました。\n\n詳細:\n- 処理数: ${result.summary?.total_processed || 'N/A'}\n- 変換済: ${result.summary?.products_converted || 'N/A'}\n- 追加成功: ${result.summary?.successfully_added || 'N/A'}\n- 追加失敗: ${result.summary?.failed_to_add || 'N/A'}`);
-          } else {
-            alert(`✅ 成功!\nPL出品マクロ.xlsm にデータを追加しました（保存はキャンセルされました）。\n\n詳細:\n- 処理数: ${result.summary?.total_processed || 'N/A'}\n- 変換済: ${result.summary?.products_converted || 'N/A'}\n- 追加成功: ${result.summary?.successfully_added || 'N/A'}\n- 追加失敗: ${result.summary?.failed_to_add || 'N/A'}`);
+        try {
+          // Make direct API call to backend Excel export endpoint with timeout
+          const response = await fetch(`${settings.backendUrl}/api/excel/export-to-excel`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ processed_results: processedResults }),
+            signal: controller.signal
+          });
+
+          clearTimeout(timeoutId);
+
+          if (!response.ok) {
+            if (response.status === 504) {
+              throw new Error('サーバーのタイムアウトが発生しました。Excelファイルが大きすぎるか、処理に時間がかかりすぎています。');
+            }
+            throw new Error(`サーバーエラー: ${response.status} - ${response.statusText}`);
           }
-        } else {
-          alert(`❌ エラー: Excel保存に失敗しました - ${result?.message || '不明なエラー'}`);
-          console.error('❌ Excel export failed:', result);
+
+          const result = await response.json();
+          
+          if (result && result.success) {
+            console.log('✅ Excel export successful:', result);
+            
+            // Download the updated Excel file from backend
+            try {
+              const downloadResponse = await fetch(`${settings.backendUrl}/api/excel/download-updated-file`, {
+                method: 'GET',
+              });
+
+              if (!downloadResponse.ok) {
+                throw new Error(`Download failed: ${downloadResponse.status} - ${downloadResponse.statusText}`);
+              }
+
+              // Get the file blob
+              const blob = await downloadResponse.blob();
+              
+              // Create download link
+              const url = window.URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = 'PL出品マクロ.xlsm';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              window.URL.revokeObjectURL(url);
+              
+              alert(`✅ 成功!\nPL出品マクロ.xlsm にデータを追加し、ダウンロードしました。\n\n詳細:\n- 処理数: ${result.summary?.total_processed || 'N/A'}\n- 変換済: ${result.summary?.products_converted || 'N/A'}\n- 追加成功: ${result.summary?.successfully_added || 'N/A'}\n- 追加失敗: ${result.summary?.failed_to_add || 'N/A'}`);
+            } catch (downloadError) {
+              console.error('❌ Download error:', downloadError);
+              alert(`✅ データ追加は成功しましたが、ダウンロードに失敗しました。\n\n詳細:\n- 処理数: ${result.summary?.total_processed || 'N/A'}\n- 変換済: ${result.summary?.products_converted || 'N/A'}\n- 追加成功: ${result.summary?.successfully_added || 'N/A'}\n- 追加失敗: ${result.summary?.failed_to_add || 'N/A'}\n\nダウンロードエラー: ${downloadError instanceof Error ? downloadError.message : '不明なエラー'}`);
+            }
+          } else {
+            alert(`❌ エラー: Excel保存に失敗しました - ${result?.message || '不明なエラー'}`);
+            console.error('❌ Excel export failed:', result);
+          }
+          
+        } catch (error: unknown) {
+          clearTimeout(timeoutId);
+          
+          if (error instanceof Error && error.name === 'AbortError') {
+            alert('❌ タイムアウトエラー: Excel処理が5分以内に完了しませんでした。\n\n対処法:\n1. Excelファイルが大きすぎないか確認してください\n2. 一度に処理する商品数を減らしてください\n3. サーバーを再起動してください');
+          } else {
+            alert(`❌ エラー: Excel保存に失敗しました - ${error instanceof Error ? error.message : '不明なエラー'}`);
+          }
+          
+          console.error('❌ Excel export error:', error);
         }
         
+        return; // Exit after Excel export
       } catch (error) {
         console.error('❌ Excel export error:', error);
         alert(`❌ エラー: Excel保存に失敗しました - ${(error as Error).message}`);
       }
-      
-      return; // Exit early for Electron Excel export
     }
-
-    // Fallback to CSV export for web browsers
-    console.log('🌐 Web browser detected: Using CSV export');
-
-    // Define comprehensive CSV headers matching the original frontend listing format
-    const csvHeaders = 'カテゴリ,管理番号,タイトル,付属品,ラック,ランク,型番,コメント,仕立て・収納,素材,色,サイズ,トップス,パンツ,スカート,ワンピース,スカートスーツ,パンツスーツ,靴,ブーツ,スニーカー,ベルト,ネクタイ縦横,帽子,バッグ,ネックレス,サングラス,あまり,出品日,出品URL,原価,売値,梱包サイズ,仕入先,仕入日,ID,ブランド,シリーズ名,原産国\n';
-    
-    const csvContent = successResults
-      .map(([productId, result]: [string, any]) => {
-        // Create the comprehensive listing data row for each product
-        const listingData = {
-          'カテゴリ': result.category || '',
-          '管理番号': productId,
-          'タイトル': result.title || '',
-          '付属品': result.accessories || '無', // Default to "無" if not detected
-          'ラック': '',
-          'ランク': result.rank || '',
-          '型番': '',
-          'コメント': '',
-          '仕立て・収納': '', // Leave blank for human input
-          '素材': result.material || '', // Leave blank if not detected by AI
-          '色': result.color || 'アイボリー系×ベージュ系', // Use dynamic color
-          'サイズ': result.size || '',
-          'トップス': '',
-          'パンツ': '',
-          'スカート': '',
-          'ワンピース': '',
-          'スカートスーツ': '',
-          'パンツスーツ': '',
-          '靴': '',
-          'ブーツ': '',
-          'スニーカー': '',
-          'ベルト': '',
-          'ネクタイ縦横': '',
-          '帽子': '',
-          'バッグ': result.category === 'トートバッグ' ? 'あり' : '',
-          'ネックレス': '',
-          'サングラス': '',
-          'あまり': '', // Leave blank for human input (sleeve/waist remaining fabric)
-          '出品日': new Date().toISOString().split('T')[0],
-          '出品URL': '',
-          '原価': '',
-          '売値': '',
-          '梱包サイズ': '',
-          '仕入先': '',
-          '仕入日': '',
-          'ID': productId,
-          'ブランド': result.brand || '',
-          'シリーズ名': '',
-          '原産国': ''
-        };
-
-        // Format the row according to the header order
-        return [
-          listingData['カテゴリ'],
-          listingData['管理番号'],
-          listingData['タイトル'],
-          listingData['付属品'],
-          listingData['ラック'],
-          listingData['ランク'],
-          listingData['型番'],
-          listingData['コメント'],
-          listingData['仕立て・収納'],
-          listingData['素材'],
-          listingData['色'],
-          listingData['サイズ'],
-          listingData['トップス'],
-          listingData['パンツ'],
-          listingData['スカート'],
-          listingData['ワンピース'],
-          listingData['スカートスーツ'],
-          listingData['パンツスーツ'],
-          listingData['靴'],
-          listingData['ブーツ'],
-          listingData['スニーカー'],
-          listingData['ベルト'],
-          listingData['ネクタイ縦横'],
-          listingData['帽子'],
-          listingData['バッグ'],
-          listingData['ネックレス'],
-          listingData['サングラス'],
-          listingData['あまり'],
-          listingData['出品日'],
-          listingData['出品URL'],
-          listingData['原価'],
-          listingData['売値'],
-          listingData['梱包サイズ'],
-          listingData['仕入先'],
-          listingData['仕入日'],
-          listingData['ID'],
-          listingData['ブランド'],
-          listingData['シリーズ名'],
-          listingData['原産国']
-        ].map(value => `"${String(value || '').replace(/"/g, '""')}"`).join(',');
-      })
-      .join('\n');
-
-    const fullCsvContent = csvHeaders + csvContent;
-    
-    // Add UTF-8 BOM to ensure proper Japanese character display
-    const BOM = '\uFEFF';
-    const csvWithBOM = BOM + fullCsvContent;
-    
-    // Create filename with current date and number of products
-    const timestamp = new Date().toISOString().split('T')[0].replace(/-/g, '');
-    const filename = `comprehensive_listing_${timestamp}_${successResults.length}products.csv`;
-
-    // Download the file
-    const blob = new Blob([csvWithBOM], { 
-      type: 'text/csv;charset=utf-8;' 
-    });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    alert(`${successResults.length}商品のCSVファイルをダウンロードしました: ${filename}`);
   };
 
   // Handle settings save
@@ -1339,21 +1273,13 @@ function App() {
                         className="w-full max-w-[400px] bg-blue-600 hover:bg-blue-700"
                       >
                         <Download className="w-4 h-4 mr-2" />
-                        {typeof window !== 'undefined' && (window as any).electronAPI ? 'PL出品マクロ.xlsmに保存' : '全商品一括CSVエクスポート（出品フォーマット）'}
+                        全商品一括CSVエクスポート（出品フォーマット）
                       </Button>
                     </div>
                     <p className="text-xs text-gray-500 text-center">
-                      {typeof window !== 'undefined' && (window as any).electronAPI ? (
-                        <>
-                          ※ 成功した全商品のデータをPL出品マクロ.xlsmファイルに追加します<br/>
-                          ※ 商品は自動的に適切なシート（トップス、パンツ等）に分類されます
-                        </>
-                      ) : (
-                        <>
-                          ※ 成功した全商品のデータを一括でCSVファイルにエクスポートします<br/>
-                          ※ 出品フォーマット（39列）に対応したファイルが生成されます
-                        </>
-                      )}
+                      ※ 成功した全商品のデータをPL出品マクロ.xlsmファイルに追加し、ダウンロードします<br/>
+                      ※ 商品は自動的に適切なシート（トップス、パンツ等）に分類されます<br/>
+                      ※ 更新されたファイルはバックエンドに保存され、選択したフォルダにダウンロードされます
                     </p>
                   </div>
 

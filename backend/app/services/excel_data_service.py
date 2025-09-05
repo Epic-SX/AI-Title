@@ -3,11 +3,15 @@ Excel data service for classifying and adding product data to the appropriate sh
 in the PL出品マクロ.xlsm file.
 """
 
-import pandas as pd
 from openpyxl import load_workbook
 from typing import Dict, List, Tuple, Optional
 import re
 import os
+import time
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class ExcelDataService:
     def __init__(self, excel_file_path: str = None):
@@ -16,10 +20,111 @@ class ExcelDataService:
             current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             excel_file_path = os.path.join(current_dir, "PL出品マクロ.xlsm")
         self.excel_file_path = excel_file_path
-        print(f"📊 Excel file path: {self.excel_file_path}")
-        print(f"📊 Excel file exists: {os.path.exists(self.excel_file_path)}")
+        logger.info(f"📊 Excel file path: {self.excel_file_path}")
+        logger.info(f"📊 Excel file exists: {os.path.exists(self.excel_file_path)}")
         
-        # Category classification keywords
+        # Pre-defined sheet headers (constant structure like your sample code)
+        # These headers match exactly what's in the PL出品マクロ.xlsm file
+        self.SHEET_HEADERS = {
+            "トップス": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "パンツ": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "スカート": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "ワンピース": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "オールインワン": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "スカートスーツ": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "パンツスーツ": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "アンサンブル": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "靴": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "ブーツ": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "ベルト": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "ネクタイ縦横": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "帽子": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "バッグ": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "ネックレス": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ],
+            "サングラス": [
+                "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+                "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+                "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+                "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+            ]
+        }
+        
+        # Category classification keywords for fallback
         self.category_keywords = {
             'トップス': [
                 'ブラウス', 'シャツ', 'tシャツ', 'カットソー', 'ニット', 'セーター', 
@@ -84,7 +189,7 @@ class ExcelDataService:
         }
         
         # Default sheet for unclassified items
-        self.default_sheet = 'Sheet1'
+        self.default_sheet = 'トップス'
         
     def classify_product_category(self, title: str, product_data: Dict) -> str:
         """
@@ -110,13 +215,18 @@ class ExcelDataService:
     def map_data_to_sheet_headers(self, data: Dict, sheet_name: str) -> Dict:
         """
         Map the input data to the appropriate headers for the target sheet.
+        Uses predefined headers instead of reading from Excel file.
         """
         try:
-            # Load the Excel file to get the headers
-            df = pd.read_excel(self.excel_file_path, sheet_name=sheet_name, nrows=0)
-            sheet_headers = list(df.columns)
+            # Use predefined headers instead of reading from Excel file
+            if sheet_name not in self.SHEET_HEADERS:
+                logger.error(f"Sheet '{sheet_name}' not found in predefined headers")
+                return {}
+            
+            headers = self.SHEET_HEADERS[sheet_name]
+            
         except Exception as e:
-            print(f"Error reading sheet headers: {e}")
+            logger.error(f"Error getting sheet headers: {e}")
             return {}
         
         # Create mapping based on common field names
@@ -165,7 +275,7 @@ class ExcelDataService:
         # Create the mapped data
         mapped_data = {}
         
-        for header in sheet_headers:
+        for header in headers:
             # Find matching field in input data
             value = None
             
@@ -279,47 +389,67 @@ class ExcelDataService:
                     value = ''
                 row_data.append(value)
             
-            # Append the row
-            ws.append(row_data)
+            # Function to check if a row is empty (all cells are None or empty string)
+            def is_row_empty(row_num, num_columns):
+                for col in range(1, num_columns + 1):
+                    cell_value = ws.cell(row=row_num, column=col).value
+                    if cell_value is not None and str(cell_value).strip() != "":
+                        return False
+                return True
+            
+            # Find the first empty row
+            num_columns = len(row_data)
+            target_row = None
+            
+            # Start from row 2 (assuming row 1 has headers)
+            for row in range(2, ws.max_row + 1):
+                if is_row_empty(row, num_columns):
+                    target_row = row
+                    break
+            
+            # If no empty row found, use the next row after the last data
+            if target_row is None:
+                target_row = ws.max_row + 1
+            
+            logger.info(f"Found empty row at: {target_row}")
+            
+            # Write data to the target row
+            for col, value in enumerate(row_data, 1):
+                ws.cell(row=target_row, column=col, value=value)
+            
+            logger.info(f"Data added to row {target_row}")
             
             # Save the workbook
             book.save(self.excel_file_path)
             
-            return True, f"Data successfully added to sheet: {target_sheet}"
+            return True, f"Data successfully added to sheet: {target_sheet} at row {target_row}"
             
         except Exception as e:
             return False, f"Error adding data to Excel: {str(e)}"
     
     def get_sheet_info(self) -> Dict:
         """
-        Get information about all sheets in the Excel file.
+        Get information about all sheets using predefined headers.
         """
         try:
-            excel_file = pd.ExcelFile(self.excel_file_path)
             sheet_info = {}
             
-            for sheet_name in excel_file.sheet_names:
-                try:
-                    df = pd.read_excel(self.excel_file_path, sheet_name=sheet_name, nrows=0)
-                    sheet_info[sheet_name] = {
-                        'headers': list(df.columns),
-                        'header_count': len(df.columns)
-                    }
-                except:
-                    sheet_info[sheet_name] = {
-                        'headers': [],
-                        'header_count': 0,
-                        'error': 'Could not read headers'
-                    }
+            # Use predefined headers instead of reading from Excel file
+            for sheet_name, headers in self.SHEET_HEADERS.items():
+                sheet_info[sheet_name] = {
+                    'headers': headers,
+                    'header_count': len(headers)
+                }
             
             return sheet_info
             
         except Exception as e:
-            return {'error': f"Could not read Excel file: {str(e)}"}
+            return {'error': f"Could not get sheet info: {str(e)}"}
     
     def bulk_add_data(self, data_list: List[Dict]) -> Tuple[int, int, List[str]]:
         """
-        Add multiple product data entries to the Excel file.
+        Add multiple product data entries to the Excel file efficiently.
+        Loads the workbook once and saves it once at the end.
         
         Args:
             data_list: List of dictionaries containing product data
@@ -327,20 +457,110 @@ class ExcelDataService:
         Returns:
             Tuple of (success_count: int, failure_count: int, error_messages: List[str])
         """
+        if not data_list:
+            return 0, 0, []
+        
         success_count = 0
         failure_count = 0
         error_messages = []
         
-        for i, data in enumerate(data_list):
-            try:
-                success, message = self.add_data_to_excel(data)
-                if success:
+        try:
+            # Load workbook once for all operations
+            logger.info(f"📊 Loading Excel workbook for bulk operation: {self.excel_file_path}")
+            book = load_workbook(self.excel_file_path, keep_vba=True)
+            
+            # Process all products
+            for i, data in enumerate(data_list):
+                try:
+                    # Classify the product to determine target sheet
+                    title = data.get('タイトル', '') or data.get('title', '')
+                    if not title:
+                        error_messages.append(f"Row {i+1}: Title is required for classification")
+                        failure_count += 1
+                        continue
+                    
+                    target_sheet = self.classify_product_category(title, data)
+                    
+                    # Map data to sheet headers
+                    mapped_data = self.map_data_to_sheet_headers(data, target_sheet)
+                    if not mapped_data:
+                        error_messages.append(f"Row {i+1}: Failed to map data for sheet: {target_sheet}")
+                        failure_count += 1
+                        continue
+                    
+                    # Generate measurement text if applicable
+                    measurement_text = self.generate_measurement_text(data, target_sheet)
+                    if measurement_text:
+                        mapped_data['採寸1'] = measurement_text
+                        # Only set 採寸2 if it doesn't already have data
+                        if not mapped_data.get('採寸2'):
+                            mapped_data['採寸2'] = measurement_text
+                    
+                    # Check if sheet exists
+                    if target_sheet not in book.sheetnames:
+                        error_messages.append(f"Row {i+1}: Sheet '{target_sheet}' not found in workbook")
+                        failure_count += 1
+                        continue
+                    
+                    ws = book[target_sheet]
+                    
+                    # Get headers from first row
+                    headers = [cell.value for cell in ws[1] if cell.value]
+                    
+                    # Prepare row data in correct order
+                    row_data = []
+                    for header in headers:
+                        value = mapped_data.get(header, '')
+                        # Convert None to empty string
+                        if value is None:
+                            value = ''
+                        row_data.append(value)
+                    
+                    # Function to check if a row is empty (all cells are None or empty string)
+                    def is_row_empty(row_num, num_columns):
+                        for col in range(1, num_columns + 1):
+                            cell_value = ws.cell(row=row_num, column=col).value
+                            if cell_value is not None and str(cell_value).strip() != "":
+                                return False
+                        return True
+                    
+                    # Find the first empty row
+                    num_columns = len(row_data)
+                    target_row = None
+                    
+                    # Start from row 2 (assuming row 1 has headers)
+                    for row in range(2, ws.max_row + 1):
+                        if is_row_empty(row, num_columns):
+                            target_row = row
+                            break
+                    
+                    # If no empty row found, use the next row after the last data
+                    if target_row is None:
+                        target_row = ws.max_row + 1
+                    
+                    logger.info(f"Found empty row at: {target_row}")
+                    
+                    # Write data to the target row
+                    for col, value in enumerate(row_data, 1):
+                        ws.cell(row=target_row, column=col, value=value)
+                    
+                    logger.info(f"Data added to row {target_row}")
                     success_count += 1
-                else:
+                    
+                except Exception as e:
                     failure_count += 1
-                    error_messages.append(f"Row {i+1}: {message}")
-            except Exception as e:
-                failure_count += 1
-                error_messages.append(f"Row {i+1}: Unexpected error - {str(e)}")
+                    error_messages.append(f"Row {i+1}: Unexpected error - {str(e)}")
+                    continue
+            
+            # Save the workbook once after all operations
+            if success_count > 0:
+                logger.info(f"💾 Saving Excel workbook with {success_count} new entries")
+                book.save(self.excel_file_path)
+                logger.info(f"✅ Excel workbook saved successfully")
+            
+        except Exception as e:
+            error_messages.append(f"Critical error during bulk operation: {str(e)}")
+            failure_count += len(data_list)  # Mark all as failed if critical error occurs
+            success_count = 0
         
         return success_count, failure_count, error_messages 

@@ -305,4 +305,209 @@ def get_category_sheet_mapping() -> Dict[str, str]:
         'バッグ': 'バッグ',
         'ネックレス': 'ネックレス',
         'サングラス': 'サングラス'
-    } 
+    }
+
+def get_predefined_sheet_headers() -> Dict[str, List[str]]:
+    """
+    Get the predefined sheet headers that match the PL出品マクロ.xlsm file structure.
+    
+    Returns:
+        Dictionary mapping sheet names to their header lists
+    """
+    return {
+        "トップス": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "パンツ": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "スカート": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "ワンピース": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "オールインワン": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "スカートスーツ": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "パンツスーツ": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "アンサンブル": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "靴": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "ブーツ": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "ベルト": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "ネクタイ縦横": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "帽子": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "バッグ": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "ネックレス": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ],
+        "サングラス": [
+            "カテゴリ", "管理番号", "タイトル", "文字数", "付属品", "ランク", "コメント", 
+            "素材", "色", "サイズ", "着丈", "　肩幅", "身幅", "袖丈", "梱包サイズ", 
+            "梱包記号", "美品", "ブランド", "フリー", "袖", "もの", "男女", 
+            "採寸1", "ラック", "金額", "股上", "股下", "ウエスト", "もも幅", "裾幅", "総丈", "ヒップ", "仕入先", "仕入日", "原価"
+        ]
+    }
+
+def convert_product_data_to_excel_format(product_data: Dict, sheet_name: str) -> List:
+    """
+    Convert product data to Excel row format matching the predefined headers.
+    
+    Args:
+        product_data: Dictionary containing product information
+        sheet_name: Target sheet name
+        
+    Returns:
+        List of values in the correct order for the sheet headers
+    """
+    headers = get_predefined_sheet_headers().get(sheet_name, [])
+    if not headers:
+        return []
+    
+    row_data = []
+    for header in headers:
+        value = product_data.get(header, "")
+        # Convert None to empty string
+        if value is None:
+            value = ""
+        row_data.append(value)
+    
+    return row_data
+
+def map_image_data_to_excel_format(image_data: Dict) -> Dict:
+    """
+    Map data from the image format to Excel format.
+    Handles the specific data structure shown in the user's image.
+    
+    Args:
+        image_data: Dictionary containing data in the format from the image
+        
+    Returns:
+        Dictionary in Excel format
+    """
+    # Extract data from image format
+    title = image_data.get('タイトル', '') or image_data.get('title', '')
+    brand = image_data.get('ブランド', '') or image_data.get('brand', '')
+    product_type = image_data.get('もの', '') or image_data.get('product_type', '')
+    color = image_data.get('色', '') or image_data.get('color', '')
+    size = image_data.get('サイズ', '') or image_data.get('size', '')
+    material = image_data.get('素材', '') or image_data.get('material', '')
+    accessories = image_data.get('付属品', '') or image_data.get('accessories', '')
+    rank = image_data.get('ランク', '') or image_data.get('rank', '')
+    
+    # Handle rank conversion (from image: "ランクA" -> "3")
+    if rank == "ランクA":
+        rank = "3"
+    elif rank == "ランクB":
+        rank = "2"
+    elif rank == "ランクC":
+        rank = "1"
+    
+    # Handle material conversion (from image: "未検出" -> "不明")
+    if material == "未検出" or not material:
+        material = "不明"
+    
+    # Create Excel format data
+    excel_data = {
+        "カテゴリ": "",  # Will be set by AI classification
+        "管理番号": image_data.get('管理番号', ''),
+        "タイトル": title,
+        "文字数": len(title) if title else 0,
+        "付属品": accessories if accessories else "無",
+        "ランク": rank if rank else "3",  # Default to 3 if not specified
+        "コメント": image_data.get('コメント', '') or image_data.get('comment', ''),
+        "素材": material,
+        "色": color,
+        "サイズ": size,
+        "着丈": image_data.get('着丈') or None,
+        "　肩幅": image_data.get('肩幅') or image_data.get('　肩幅') or None,
+        "身幅": image_data.get('身幅') or None,
+        "袖丈": image_data.get('袖丈') or None,
+        "股上": image_data.get('股上') or None,
+        "股下": image_data.get('股下') or None,
+        "ウエスト": image_data.get('ウエスト') or None,
+        "もも幅": image_data.get('もも幅') or None,
+        "裾幅": image_data.get('裾幅') or None,
+        "総丈": image_data.get('総丈') or None,
+        "ヒップ": image_data.get('ヒップ') or None,
+        "梱包サイズ": image_data.get('梱包サイズ', '') or "通常",
+        "梱包記号": image_data.get('梱包記号', '') or "◇",
+        "美品": image_data.get('美品', ''),
+        "ブランド": brand,
+        "フリー": image_data.get('フリー', '') or image_data.get('free_text', ''),
+        "袖": image_data.get('袖', '') or image_data.get('sleeve', ''),
+        "もの": product_type,
+        "男女": image_data.get('男女', '') or image_data.get('gender', ''),
+        "採寸1": image_data.get('採寸1', '') or image_data.get('measurement1', ''),
+        "ラック": image_data.get('ラック', '') or image_data.get('rack', ''),
+        "金額": image_data.get('金額') or image_data.get('売値') or image_data.get('price') or None,
+        "仕入先": image_data.get('仕入先', '') or image_data.get('supplier', ''),
+        "仕入日": image_data.get('仕入日', '') or image_data.get('purchase_date', ''),
+        "原価": image_data.get('原価') or image_data.get('cost_price') or None
+    }
+    
+    return excel_data 

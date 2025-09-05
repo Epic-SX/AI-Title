@@ -9,9 +9,10 @@ const store = new Store();
 const isDev = process.env.ELECTRON_IS_DEV === 'true';
 
 let mainWindow: BrowserWindow;
-// Use local backend for Excel functionality
-const BACKEND_URL = `http://localhost:5000`;
+// Use local backend for Excel functionality - fallback to localhost if remote fails
 const REMOTE_BACKEND_URL = `http://162.43.19.70`;
+const LOCAL_BACKEND_URL = `http://162.43.19.70`;
+let BACKEND_URL = REMOTE_BACKEND_URL; // Try remote first, fallback to local
 
 function createWindow(): void {
   console.log('🪟 Creating main window...');
@@ -80,21 +81,6 @@ function createMenu(): void {
           }
         },
         { type: 'separator' },
-        {
-          label: 'Excel出品データ追加',
-          accelerator: 'CmdOrCtrl+E',
-          click: () => {
-            // This will be handled by the renderer process
-            mainWindow.webContents.send('show-excel-dialog');
-          }
-        },
-        {
-          label: 'PL出品マクロ.xlsmを保存...',
-          accelerator: 'CmdOrCtrl+S',
-          click: () => {
-            saveExcelFileAs();
-          }
-        },
         { type: 'separator' },
         {
           label: '終了',
@@ -237,6 +223,29 @@ async function checkBackendHealth(): Promise<boolean> {
     clearTimeout(timeoutId);
     return response.ok;
   } catch (error) {
+    // If remote backend fails, try local backend
+    if (BACKEND_URL === REMOTE_BACKEND_URL) {
+      console.log('🔄 Remote backend failed, trying local backend...');
+      BACKEND_URL = LOCAL_BACKEND_URL;
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(`${BACKEND_URL}/health`, {
+          method: 'GET',
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        if (response.ok) {
+          console.log('✅ Successfully connected to local backend');
+          return true;
+        }
+      } catch (localError) {
+        console.log('❌ Local backend also failed');
+        BACKEND_URL = REMOTE_BACKEND_URL; // Reset to remote for next attempt
+      }
+    }
     return false;
   }
 }
@@ -253,191 +262,9 @@ async function checkBackendStatus(): Promise<void> {
   });
 }
 
-// API calling functions - restricted to Excel endpoints only
-async function makeApiCall(endpoint: string, method: string = 'GET', data?: any): Promise<any> {
-  console.log(`🌐 API Call attempt: ${method} ${endpoint}`);
-  
-  // Only allow Excel-related and health check endpoints
-  const allowedEndpoints = [
-    '/health',
-    '/excel/add-product',
-    '/excel/add-products-bulk', 
-    '/excel/classify-product',
-    '/excel/sheet-info',
-    '/excel/test-sample',
-    '/excel/mapping-preview',
-    '/excel/save-file',
-    '/excel/file-info',
-    '/excel/export-to-excel'
-  ];
-  
-  if (!allowedEndpoints.includes(endpoint)) {
-    const error = `❌ API endpoint BLOCKED: ${endpoint}`;
-    console.error(error);
-    console.log('📋 Allowed endpoints:', allowedEndpoints);
-    throw new Error(error);
-  }
-  
-  console.log(`✅ API endpoint ALLOWED: ${endpoint}`);
-  
-  try {
-    const url = `${BACKEND_URL}${endpoint}`;
-    console.log(`🔗 Making request to: ${url}`);
-    
-    const options: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    };
 
-    if (data && method !== 'GET') {
-      options.body = JSON.stringify(data);
-      console.log(`📤 Request data:`, data);
-    }
 
-    console.log(`⏳ Sending ${method} request...`);
-    const response = await fetch(url, options);
-    console.log(`📨 Response status: ${response.status}`);
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ HTTP error! status: ${response.status}, body: ${errorText}`);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
 
-    const result = await response.json();
-    console.log(`✅ API call successful:`, result);
-    return result;
-  } catch (error) {
-    console.error('❌ API call failed:', error);
-    throw error;
-  }
-}
-
-// Excel API functions
-async function addProductToExcel(productData: any): Promise<any> {
-  return makeApiCall('/excel/add-product', 'POST', productData);
-}
-
-async function addProductsBulk(products: any[]): Promise<any> {
-  return makeApiCall('/excel/add-products-bulk', 'POST', { products });
-}
-
-async function classifyProduct(productData: any): Promise<any> {
-  return makeApiCall('/excel/classify-product', 'POST', productData);
-}
-
-async function getSheetInfo(): Promise<any> {
-  return makeApiCall('/excel/sheet-info', 'GET');
-}
-
-async function testSampleData(): Promise<any> {
-  return makeApiCall('/excel/test-sample', 'POST');
-}
-
-async function getMappingPreview(productData: any): Promise<any> {
-  return makeApiCall('/excel/mapping-preview', 'POST', productData);
-}
-
-async function getExcelFileInfo(): Promise<any> {
-  return makeApiCall('/excel/file-info', 'GET');
-}
-
-async function saveExcelFile(targetPath: string): Promise<any> {
-  return makeApiCall('/excel/save-file', 'POST', { target_path: targetPath });
-}
-
-async function saveExcelFileAs(): Promise<string | null> {
-  try {
-    // Show save dialog
-    const result = await dialog.showSaveDialog(mainWindow, {
-      title: 'PL出品マクロ.xlsmを保存',
-      defaultPath: 'PL出品マクロ.xlsm',
-      filters: [
-        {
-          name: 'Excel Macro File',
-          extensions: ['xlsm']
-        },
-        {
-          name: 'Excel File',
-          extensions: ['xlsx']
-        },
-        {
-          name: 'All Files',
-          extensions: ['*']
-        }
-      ]
-    });
-
-    if (result.canceled || !result.filePath) {
-      return null;
-    }
-
-    // Call backend to save the file
-    console.log(`💾 Saving Excel file to: ${result.filePath}`);
-    const response = await saveExcelFile(result.filePath);
-    
-    if (response.success) {
-      console.log(`✅ Excel file saved successfully: ${response.target_path}`);
-      
-      // Show success message
-      dialog.showMessageBox(mainWindow, {
-        type: 'info',
-        title: '保存完了',
-        message: 'Excel ファイルの保存が完了しました',
-        detail: `保存場所: ${response.target_path}`
-      });
-      
-      return response.target_path;
-    } else {
-      console.error(`❌ Failed to save Excel file: ${response.message}`);
-      
-      // Show error message
-      dialog.showErrorBox('保存エラー', `Excel ファイルの保存に失敗しました:\n${response.message}`);
-      
-      return null;
-    }
-  } catch (error) {
-    console.error('❌ Error saving Excel file:', error);
-    
-    // Show error message
-    dialog.showErrorBox('保存エラー', `Excel ファイルの保存中にエラーが発生しました:\n${error}`);
-    
-    return null;
-  }
-}
-
-// Bulk Excel export function for processed results
-async function exportProcessedResultsToExcel(processedResults: any): Promise<any> {
-  const itemCount = Array.isArray(processedResults) ? processedResults.length : Object.keys(processedResults).length;
-  console.log(`📊 Exporting ${itemCount} processed results to Excel...`);
-  
-  // First check if backend is healthy
-  try {
-    console.log('🔍 Testing backend health before Excel export...');
-    const healthCheck = await makeApiCall('/health', 'GET');
-    console.log('✅ Backend health check passed:', healthCheck);
-  } catch (error) {
-    console.error('❌ Backend health check failed:', error);
-    
-    // Show user-friendly error dialog
-    dialog.showErrorBox('Backend Connection Error', 
-      `Cannot connect to the local backend server at ${BACKEND_URL}\n\n` +
-      `Please ensure the backend server is running:\n` +
-      `1. Open a terminal in the backend folder\n` +
-      `2. Run: python wsgi.py\n` +
-      `3. Make sure you see "Running on http://localhost:5000"\n\n` +
-      `Error details: ${error}`
-    );
-    
-    throw new Error(`Backend server is not accessible: ${error}`);
-  }
-  
-  // Use the new export-to-excel API which handles classification and data transformation
-  console.log('🔗 Calling export-to-excel endpoint...');
-  return makeApiCall('/excel/export-to-excel', 'POST', { processed_results: processedResults });
-}
 
 // IPC handlers
 ipcMain.handle('select-images', selectImages);
@@ -448,65 +275,9 @@ ipcMain.handle('get-app-data', getAppData);
 ipcMain.handle('set-app-data', setAppData);
 ipcMain.handle('read-directory', readDirectory);
 
-// Backend API IPC handlers
-ipcMain.handle('start-backend-server', async () => {
-  console.log('📡 IPC: start-backend-server called');
-  return await startBackendServer();
-});
-ipcMain.handle('stop-backend-server', () => {
-  console.log('📡 IPC: stop-backend-server called');
-  return stopBackendServer();
-});
-ipcMain.handle('check-backend-health', async () => {
-  console.log('📡 IPC: check-backend-health called');
-  return await checkBackendHealth();
-});
-ipcMain.handle('api-call', async (event, endpoint, method, data) => {
-  console.log(`📡 IPC: api-call received - ${method} ${endpoint}`);
-  return await makeApiCall(endpoint, method, data);
-});
 
-// Excel API IPC handlers
-ipcMain.handle('excel-add-product', async (event, productData) => {
-  console.log('📊 IPC: excel-add-product called');
-  return await addProductToExcel(productData);
-});
-ipcMain.handle('excel-add-products-bulk', async (event, products) => {
-  console.log('📊 IPC: excel-add-products-bulk called');
-  return await addProductsBulk(products);
-});
-ipcMain.handle('excel-classify-product', async (event, productData) => {
-  console.log('📊 IPC: excel-classify-product called');
-  return await classifyProduct(productData);
-});
-ipcMain.handle('excel-get-sheet-info', async () => {
-  console.log('📊 IPC: excel-get-sheet-info called');
-  return await getSheetInfo();
-});
-ipcMain.handle('excel-test-sample', async () => {
-  console.log('📊 IPC: excel-test-sample called');
-  return await testSampleData();
-});
-ipcMain.handle('excel-mapping-preview', async (event, productData) => {
-  console.log('📊 IPC: excel-mapping-preview called');
-  return await getMappingPreview(productData);
-});
-ipcMain.handle('excel-export-processed-results', async (event, processedResults) => {
-  console.log('📊 IPC: excel-export-processed-results called');
-  return await exportProcessedResultsToExcel(processedResults);
-});
-ipcMain.handle('excel-get-file-info', async () => {
-  console.log('📊 IPC: excel-get-file-info called');
-  return await getExcelFileInfo();
-});
-ipcMain.handle('excel-save-file', async (event, targetPath) => {
-  console.log('📊 IPC: excel-save-file called');
-  return await saveExcelFile(targetPath);
-});
-ipcMain.handle('excel-save-file-as', async () => {
-  console.log('📊 IPC: excel-save-file-as called');
-  return await saveExcelFileAs();
-});
+
+
 
 async function selectImages(): Promise<string[] | null> {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -544,7 +315,81 @@ async function selectDirectory(): Promise<string | null> {
   return result.filePaths[0];
 }
 
-async function saveCsv(event: any, data: { content: string; filename: string; defaultPath?: string }): Promise<string | null> {
+async function saveCsv(event: any, data: { content: string; filename: string; defaultPath?: string; isExcelFile?: boolean; backendUrl?: string }): Promise<string | null> {
+  // Handle Excel file downloads differently
+  if (data.isExcelFile && data.backendUrl) {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'PL出品マクロ.xlsmを保存',
+      defaultPath: data.filename,
+      filters: [
+        {
+          name: 'Excel Macro File',
+          extensions: ['xlsm']
+        },
+        {
+          name: 'Excel File',
+          extensions: ['xlsx']
+        },
+        {
+          name: 'All Files',
+          extensions: ['*']
+        }
+      ]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    try {
+      // Download Excel file from backend
+      console.log(`💾 Downloading Excel file from backend and saving to: ${result.filePath}`);
+      
+      const response = await fetch(`${data.backendUrl}/excel/save-file`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ target_path: result.filePath }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+
+      const saveResult = await response.json();
+      
+      if (saveResult.success) {
+        console.log(`✅ Excel file saved successfully: ${saveResult.target_path}`);
+        
+        // Show success message
+        dialog.showMessageBox(mainWindow, {
+          type: 'info',
+          title: '保存完了',
+          message: 'Excel ファイルの保存が完了しました',
+          detail: `保存場所: ${saveResult.target_path}`
+        });
+        
+        return saveResult.target_path;
+      } else {
+        console.error(`❌ Failed to save Excel file: ${saveResult.message}`);
+        
+        // Show error message
+        dialog.showErrorBox('保存エラー', `Excel ファイルの保存に失敗しました:\n${saveResult.message}`);
+        
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Error downloading Excel file:', error);
+      
+      // Show error message
+      dialog.showErrorBox('保存エラー', `Excel ファイルのダウンロード中にエラーが発生しました:\n${error}`);
+      
+      return null;
+    }
+  }
+
+  // Handle regular CSV files
   const result = await dialog.showSaveDialog(mainWindow, {
     title: 'CSVファイルを保存',
     defaultPath: data.defaultPath || data.filename,
@@ -632,15 +477,18 @@ async function readDirectory(event: any, directoryPath: string): Promise<{ files
 // App event listeners
 app.whenReady().then(async () => {
   console.log('🚀 Electron app starting...');
-  console.log('📍 Backend URL configured:', BACKEND_URL);
+  console.log('📍 Remote Backend URL:', REMOTE_BACKEND_URL);
+  console.log('📍 Local Backend URL:', LOCAL_BACKEND_URL);
+  console.log('📍 Current Backend URL:', BACKEND_URL);
   console.log('🔧 Development mode:', isDev);
   
   createWindow();
   
-  // Check remote backend server availability
-  console.log('🔍 Checking remote backend server availability...');
+  // Check backend server availability (tries remote first, then local)
+  console.log('🔍 Checking backend server availability...');
   const healthStatus = await checkBackendHealth();
   console.log('❤️ Backend health status:', healthStatus);
+  console.log('📍 Active Backend URL:', BACKEND_URL);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
