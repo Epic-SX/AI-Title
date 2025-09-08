@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, RefreshCw } from 'lucide-react';
+import { useCategoryLookup } from '../hooks/useCategoryLookup';
 import LoadingSpinner from './LoadingSpinner';
 
-interface ResultCardProps {
+interface CategoryEnhancedResultCardProps {
   title: string;
   extractedText?: string;
   detectedColor?: string;
@@ -16,7 +17,6 @@ interface ResultCardProps {
   index?: number;
   loading?: boolean;
   isProductVariant?: boolean;
-  // For backward compatibility with the ResultsList component
   result?: {
     title: string;
     brand?: string;
@@ -41,7 +41,7 @@ interface ResultCardProps {
   };
 }
 
-export default function ResultCard({ 
+export default function CategoryEnhancedResultCard({ 
   title, 
   extractedText, 
   detectedColor, 
@@ -52,19 +52,36 @@ export default function ResultCard({
   loading = false,
   isProductVariant = false,
   result
-}: ResultCardProps) {
+}: CategoryEnhancedResultCardProps) {
   const [copied, setCopied] = useState(false);
+  const [enhancedResult, setEnhancedResult] = useState(result);
+  const { loading: categoryLoading, error: categoryError, enhanceResult, clearError } = useCategoryLookup();
 
   // Support both direct props and result object
-  const displayTitle = result?.title || title;
-  const displayBrand = result?.brand || detectedBrand;
-  const displayModel = result?.model || detectedModel;
-  const displayType = result?.product_type || itemType;
-  const displaySize = result?.size;
-  const displayAccessories = result?.accessories;
-  const displayTailoringStorage = result?.tailoring_storage;
-  const displayRemainingFabric = result?.remaining_fabric;
-  const displayCategory = result?.category;
+  const displayTitle = enhancedResult?.title || title;
+  const displayBrand = enhancedResult?.brand || detectedBrand;
+  const displayModel = enhancedResult?.model || detectedModel;
+  const displayType = enhancedResult?.product_type || itemType;
+  const displaySize = enhancedResult?.size;
+  const displayAccessories = enhancedResult?.accessories;
+  const displayTailoringStorage = enhancedResult?.tailoring_storage;
+  const displayRemainingFabric = enhancedResult?.remaining_fabric;
+  const displayCategory = enhancedResult?.category;
+
+  // Auto-enhance result with category when component mounts
+  useEffect(() => {
+    if (result && !result.category && !categoryLoading) {
+      handleEnhanceWithCategory();
+    }
+  }, [result]);
+
+  const handleEnhanceWithCategory = async () => {
+    if (!result) return;
+    
+    clearError();
+    const enhanced = await enhanceResult(result);
+    setEnhancedResult(enhanced);
+  };
 
   const handleCopy = () => {
     try {
@@ -109,12 +126,49 @@ export default function ResultCard({
   return (
     <Card className="w-full mb-4">
       <CardHeader>
-        <CardTitle className="text-lg font-semibold">
-          {isProductVariant ? `画像 ${index + 1} の商品` : `タイトル案 ${index + 1}`}
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg font-semibold">
+            {isProductVariant ? `画像 ${index + 1} の商品` : `タイトル案 ${index + 1}`}
+          </CardTitle>
+          <div className="flex gap-2">
+            {!displayCategory && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleEnhanceWithCategory}
+                disabled={categoryLoading}
+              >
+                {categoryLoading ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                {categoryLoading ? 'カテゴリ検索中...' : 'カテゴリを検索'}
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCopy}
+              disabled={copied}
+            >
+              {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+              {copied ? 'コピー済み' : 'コピー'}
+            </Button>
+          </div>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
+          {categoryError && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-600 text-sm">カテゴリ検索エラー: {categoryError}</p>
+              <Button variant="outline" size="sm" onClick={clearError} className="mt-2">
+                エラーをクリア
+              </Button>
+            </div>
+          )}
+
           <div>
             <h3 className="font-medium mb-2">タイトル:</h3>
             <p className="text-sm border p-3 rounded-md bg-muted/50">{displayTitle}</p>
@@ -226,11 +280,11 @@ export default function ResultCard({
             </div>
           )}
 
-          {result?.keywords && result.keywords.length > 0 && (
+          {enhancedResult?.keywords && enhancedResult.keywords.length > 0 && (
             <div>
               <h3 className="font-medium mb-2">キーワード:</h3>
               <div className="flex flex-wrap gap-1">
-                {result.keywords.map((keyword, idx) => (
+                {enhancedResult.keywords.map((keyword, idx) => (
                   <span key={idx} className="text-xs py-1 px-2 bg-primary/10 text-primary rounded-full">
                     {keyword}
                   </span>
@@ -239,56 +293,28 @@ export default function ResultCard({
             </div>
           )}
 
-          {extractedText && (
-            <div>
-              <h3 className="font-medium mb-2">抽出テキスト:</h3>
-              <div className="text-sm border p-3 rounded-md bg-muted/50 whitespace-pre-line">
-                {extractedText}
-              </div>
-            </div>
-          )}
-
-          {result?.raw_text && (
-            <div>
-              <h3 className="font-medium mb-2">解析テキスト:</h3>
-              <div className="text-sm border p-3 rounded-md bg-muted/50 whitespace-pre-line">
-                {result.raw_text}
-              </div>
-            </div>
-          )}
-
-          {result?.product_features && result.product_features.length > 0 && (
+          {enhancedResult?.product_features && enhancedResult.product_features.length > 0 && (
             <div>
               <h3 className="font-medium mb-2">商品特徴:</h3>
-              <ul className="list-disc list-inside text-sm space-y-1">
-                {result.product_features.map((feature, idx) => (
-                  <li key={idx}>{feature}</li>
+              <div className="flex flex-wrap gap-1">
+                {enhancedResult.product_features.map((feature, idx) => (
+                  <span key={idx} className="text-xs py-1 px-2 bg-secondary/10 text-secondary-foreground rounded-full">
+                    {feature}
+                  </span>
                 ))}
-              </ul>
+              </div>
+            </div>
+          )}
+
+          {extractedText && (
+            <div>
+              <h3 className="font-medium mb-1">抽出テキスト:</h3>
+              <p className="text-sm text-muted-foreground">{extractedText}</p>
             </div>
           )}
         </div>
       </CardContent>
-      <CardFooter>
-        <Button 
-          variant="outline" 
-          className="w-full" 
-          size="sm"
-          onClick={handleCopy}
-        >
-          {copied ? (
-            <>
-              <Check className="mr-2 h-4 w-4" />
-              コピーしました
-            </>
-          ) : (
-            <>
-              <Copy className="mr-2 h-4 w-4" />
-              タイトルをコピー
-            </>
-          )}
-        </Button>
-      </CardFooter>
     </Card>
   );
-} 
+}
+

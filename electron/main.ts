@@ -275,6 +275,21 @@ ipcMain.handle('get-app-data', getAppData);
 ipcMain.handle('set-app-data', setAppData);
 ipcMain.handle('read-directory', readDirectory);
 
+// Backend server management IPC handlers
+ipcMain.handle('start-backend-server', startBackendServer);
+ipcMain.handle('check-backend-health', checkBackendHealth);
+
+// Excel API IPC handlers
+ipcMain.handle('excel-get-sheet-info', excelGetSheetInfo);
+ipcMain.handle('excel-classify-product', excelClassifyProduct);
+ipcMain.handle('excel-add-product', excelAddProduct);
+ipcMain.handle('excel-test-sample', excelTestSample);
+ipcMain.handle('excel-get-mapping-preview', excelGetMappingPreview);
+ipcMain.handle('excel-download-updated-file', excelDownloadUpdatedFile);
+ipcMain.handle('excel-cleanup-copy', excelCleanupCopy);
+ipcMain.handle('excel-refresh-copy', excelRefreshCopy);
+ipcMain.handle('excel-overwrite-original', excelOverwriteOriginal);
+
 
 
 
@@ -369,6 +384,22 @@ async function saveCsv(event: any, data: { content: string; filename: string; de
           message: 'Excel ファイルの保存が完了しました',
           detail: `保存場所: ${saveResult.target_path}`
         });
+        
+        // Clean up the copy file after successful download
+        try {
+          const cleanupResponse = await fetch(`${data.backendUrl}/api/excel/cleanup-copy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          
+          if (cleanupResponse.ok) {
+            console.log('✅ Copy file cleaned up after download');
+          } else {
+            console.log('⚠️ Failed to clean up copy file');
+          }
+        } catch (cleanupError) {
+          console.log('⚠️ Error cleaning up copy file:', cleanupError);
+        }
         
         return saveResult.target_path;
       } else {
@@ -471,6 +502,225 @@ async function readDirectory(event: any, directoryPath: string): Promise<{ files
   } catch (error) {
     console.error('Error reading directory:', error);
     return { files: [], error: 'ディレクトリの読み取りに失敗しました' };
+  }
+}
+
+// Excel API handler functions
+async function excelGetSheetInfo(): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/sheet-info`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error getting sheet info:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelClassifyProduct(event: any, productData: any): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/classify-product`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(productData)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error classifying product:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelAddProduct(event: any, productData: any): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/add-product`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(productData)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error adding product:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelTestSample(): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/test-sample`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error testing sample:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelGetMappingPreview(event: any, productData: any): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/mapping-preview`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(productData)
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error getting mapping preview:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelDownloadUpdatedFile(): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/download-updated-file`, {
+      method: 'GET'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    // Get the file blob
+    const blob = await response.blob();
+    
+    // Show save dialog
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'copy_PL出品マクロ.xlsmを保存',
+      defaultPath: 'copy_PL出品マクロ.xlsm',
+      filters: [
+        {
+          name: 'Excel Macro File',
+          extensions: ['xlsm']
+        },
+        {
+          name: 'Excel File',
+          extensions: ['xlsx']
+        },
+        {
+          name: 'All Files',
+          extensions: ['*']
+        }
+      ]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, message: 'Download cancelled' };
+    }
+
+    // Save the file
+    const arrayBuffer = await blob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    fs.writeFileSync(result.filePath, buffer);
+    
+    console.log(`✅ Excel file downloaded and saved to: ${result.filePath}`);
+    
+    // Clean up the copy file after successful download
+    try {
+      const cleanupResponse = await fetch(`${BACKEND_URL}/api/excel/cleanup-copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (cleanupResponse.ok) {
+        console.log('✅ Copy file cleaned up after download');
+      } else {
+        console.log('⚠️ Failed to clean up copy file');
+      }
+    } catch (cleanupError) {
+      console.log('⚠️ Error cleaning up copy file:', cleanupError);
+    }
+    
+    return { 
+      success: true, 
+      message: 'File downloaded successfully',
+      filePath: result.filePath
+    };
+  } catch (error) {
+    console.error('Error downloading updated file:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelCleanupCopy(): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/cleanup-copy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error cleaning up copy:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelRefreshCopy(): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/refresh-copy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error refreshing copy:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelOverwriteOriginal(): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/overwrite-original`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error overwriting original file:', error);
+    return { success: false, message: `Error: ${error}` };
   }
 }
 

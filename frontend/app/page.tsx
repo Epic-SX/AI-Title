@@ -17,8 +17,10 @@ import MultiImageUploader from './components/MultiImageUploader';
 import ResultCard from './components/ResultCard';
 import ResultsList from './components/ResultsList';
 import MacroExportCard from './components/MacroExportCard';
+import { enhanceResultWithCategory } from './utils/categoryLookup';
 import FormHydrationFixer from './components/FormHydrationFixer';
 import LoadingSpinner from './components/LoadingSpinner';
+import CategoryTestButton from './components/CategoryTestButton';
 
 // Add Debug Panel component
 function DebugPanel({ data }: { data: any }) {
@@ -394,8 +396,8 @@ function BatchProcessing() {
                 };
               }
               
-              // Store result for this product
-              allResults[productId] = {
+              // Create base result
+              const baseResult = {
                 status: 'success',
                 product_id: productId,
                 image_count: productFiles.length,
@@ -420,6 +422,16 @@ function BatchProcessing() {
                 data_quality: data.data_quality || null,
                 processing_time: Date.now() // Simple timestamp
               };
+
+              // Enhance result with category information
+              try {
+                const enhancedResult = await enhanceResultWithCategory(baseResult);
+                allResults[productId] = enhancedResult;
+                console.log(`[CATEGORY] Enhanced result for product ${productId} with category:`, enhancedResult.category);
+              } catch (error) {
+                console.error(`[CATEGORY] Failed to enhance result for product ${productId}:`, error);
+                allResults[productId] = baseResult; // Use base result if category enhancement fails
+              }
               
               // Store image URLs for preview
               allProductImageUrls[productId] = productImageUrls;
@@ -1330,13 +1342,27 @@ export default function Home() {
             },
           };
           
-          setResult({
-            ...mainResult,
-            marketplace_variants: data.marketplace_variants || {},
-            title_validation: data.title_validation || null,
-            data_quality: data.data_quality || null,
-            title_alternatives: titleAlternatives
-          });
+          // Enhance main result with category information
+          try {
+            const enhancedMainResult = await enhanceResultWithCategory({
+              ...mainResult,
+              marketplace_variants: data.marketplace_variants || {},
+              title_validation: data.title_validation || null,
+              data_quality: data.data_quality || null,
+              title_alternatives: titleAlternatives
+            });
+            setResult(enhancedMainResult);
+            console.log('[CATEGORY] Enhanced main result with category:', enhancedMainResult.category);
+          } catch (error) {
+            console.error('[CATEGORY] Failed to enhance main result:', error);
+            setResult({
+              ...mainResult,
+              marketplace_variants: data.marketplace_variants || {},
+              title_validation: data.title_validation || null,
+              data_quality: data.data_quality || null,
+              title_alternatives: titleAlternatives
+            });
+          }
         } else {
           const mainResult = {
             title: rawResponse?.title || "タイトルなし",
@@ -1364,7 +1390,7 @@ export default function Home() {
           
           const titleAlternatives = [];
           if (rawResponse?.key_features && Array.isArray(rawResponse.key_features)) {
-            titleAlternatives.push({
+            const alternativeResult = {
               title: rawResponse.title || "タイトルなし",
               brand: rawResponse.brand || "不明",
               model: formData.model_number || "",
@@ -1375,16 +1401,40 @@ export default function Home() {
               remaining_fabric: rawResponse.remaining_fabric || "不明",
               keywords: [],
               product_features: rawResponse.key_features
-            });
+            };
+            
+            // Enhance alternative result with category information
+            try {
+              const enhancedAlternative = await enhanceResultWithCategory(alternativeResult);
+              titleAlternatives.push(enhancedAlternative);
+              console.log('[CATEGORY] Enhanced title alternative with category:', enhancedAlternative.category);
+            } catch (error) {
+              console.error('[CATEGORY] Failed to enhance title alternative:', error);
+              titleAlternatives.push(alternativeResult);
+            }
           }
           
-          setResult({
-            ...mainResult,
-            marketplace_variants: data.marketplace_variants || {},
-            title_validation: data.title_validation || null,
-            data_quality: data.data_quality || null,
-            title_alternatives: titleAlternatives
-          });
+          // Enhance main result with category information
+          try {
+            const enhancedMainResult = await enhanceResultWithCategory({
+              ...mainResult,
+              marketplace_variants: data.marketplace_variants || {},
+              title_validation: data.title_validation || null,
+              data_quality: data.data_quality || null,
+              title_alternatives: titleAlternatives
+            });
+            setResult(enhancedMainResult);
+            console.log('[CATEGORY] Enhanced main result with category:', enhancedMainResult.category);
+          } catch (error) {
+            console.error('[CATEGORY] Failed to enhance main result:', error);
+            setResult({
+              ...mainResult,
+              marketplace_variants: data.marketplace_variants || {},
+              title_validation: data.title_validation || null,
+              data_quality: data.data_quality || null,
+              title_alternatives: titleAlternatives
+            });
+          }
         }
       } else if (data.error) {
         setError(data.error || 'タイトル生成中にエラーが発生しました');
@@ -1426,8 +1476,10 @@ export default function Home() {
         </TabsList>
         
         <TabsContent value="input">
-          <Card>
-            <CardContent className="pt-6 space-y-6">
+          <div className="space-y-6">
+            <CategoryTestButton />
+            <Card>
+              <CardContent className="pt-6 space-y-6">
               {error && (
                 <Alert variant="destructive">
                   <AlertDescription>{error}</AlertDescription>
@@ -1498,6 +1550,7 @@ export default function Home() {
               </FormHydrationFixer>
             </CardFooter>
           </Card>
+          </div>
         </TabsContent>
         
         <TabsContent value="batch">

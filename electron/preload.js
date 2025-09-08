@@ -127,67 +127,19 @@ contextBridge.exposeInMainWorld('electronAPI', {
   
   // Backend server management
   startBackendServer: () => ipcRenderer.invoke('start-backend-server'),
-  stopBackendServer: () => ipcRenderer.invoke('stop-backend-server'),
   checkBackendHealth: () => ipcRenderer.invoke('check-backend-health'),
   
-  // Restricted API calling - only allow Excel endpoints
-  apiCall: (endpoint, method = 'GET', data) => {
-    console.log(`🔍 PRELOAD: API call requested: ${method} ${endpoint}`);
-    
-    // Only allow Excel-related API calls
-    const allowedEndpoints = [
-      '/health',
-      '/excel/add-product',
-      '/excel/add-products-bulk', 
-      '/excel/classify-product',
-      '/excel/sheet-info',
-      '/excel/test-sample',
-      '/excel/mapping-preview',
-      '/excel/save-file',
-      '/excel/file-info',
-      '/excel/export-to-excel'
-    ];
-    
-    if (allowedEndpoints.includes(endpoint)) {
-      console.log(`✅ PRELOAD: API call ALLOWED: ${endpoint}`);
-      return ipcRenderer.invoke('api-call', endpoint, method, data);
-    } else {
-      console.warn(`❌ PRELOAD: API call BLOCKED for security: ${endpoint}`);
-      console.log('📋 PRELOAD: Allowed endpoints:', allowedEndpoints);
-      return Promise.reject(new Error(`API endpoint not allowed: ${endpoint}`));
-    }
-  },
-  
-  // Excel API functions
+  // Excel API integration
   excel: {
-    addProduct: (productData) => ipcRenderer.invoke('excel-add-product', productData),
-    addProductsBulk: (products) => ipcRenderer.invoke('excel-add-products-bulk', products),
-    classifyProduct: (productData) => ipcRenderer.invoke('excel-classify-product', productData),
     getSheetInfo: () => ipcRenderer.invoke('excel-get-sheet-info'),
+    classifyProduct: (productData) => ipcRenderer.invoke('excel-classify-product', productData),
+    addProduct: (productData) => ipcRenderer.invoke('excel-add-product', productData),
     testSample: () => ipcRenderer.invoke('excel-test-sample'),
-    getMappingPreview: (productData) => ipcRenderer.invoke('excel-mapping-preview', productData),
-    exportProcessedResults: (processedResults) => {
-      const itemCount = Array.isArray(processedResults) ? processedResults.length : Object.keys(processedResults).length;
-      console.log('🔍 PRELOAD: Excel export processed results requested:', itemCount, 'items');
-      return ipcRenderer.invoke('excel-export-processed-results', processedResults);
-    },
-    getFileInfo: () => {
-      console.log('🔍 PRELOAD: Excel file info requested');
-      return ipcRenderer.invoke('excel-get-file-info');
-    },
-    saveFile: (targetPath) => {
-      console.log('🔍 PRELOAD: Excel save file requested:', targetPath);
-      return ipcRenderer.invoke('excel-save-file', targetPath);
-    },
-    saveFileAs: () => {
-      console.log('🔍 PRELOAD: Excel save file as requested');
-      return ipcRenderer.invoke('excel-save-file-as');
-    }
-  },
-  
-  // Event listeners for renderer process
-  onShowExcelDialog: (callback) => {
-    ipcRenderer.on('show-excel-dialog', callback);
+    getMappingPreview: (productData) => ipcRenderer.invoke('excel-get-mapping-preview', productData),
+    downloadUpdatedFile: () => ipcRenderer.invoke('excel-download-updated-file'),
+    cleanupCopy: () => ipcRenderer.invoke('excel-cleanup-copy'),
+    refreshCopy: () => ipcRenderer.invoke('excel-refresh-copy'),
+    overwriteOriginal: () => ipcRenderer.invoke('excel-overwrite-original')
   },
   
   // Remove event listeners
@@ -198,10 +150,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Helper functions
   shouldUseRemoteImageProcessing: () => {
     return false; // Always use local image processing
-  },
-  
-  shouldUseRemoteExcelAPI: () => {
-    return true; // Always use remote Excel API
   },
   
   // System info
@@ -254,7 +202,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Configuration flags
   config: {
     enableImageProcessingAPI: false,  // Disable image processing API calls
-    enableExcelAPI: true,             // Enable Excel API calls
     backendUrl: 'http://162.43.19.70', // Remote backend URL
     useLocalImageProcessing: true     // Use local image processing instead
   }
@@ -263,7 +210,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
 console.log('✅ PRELOAD: electronAPI exposed to window');
 console.log('📋 PRELOAD: Configuration set:');
 console.log('  - enableImageProcessingAPI:', false);
-console.log('  - enableExcelAPI:', true);
 console.log('  - backendUrl:', 'http://162.43.19.70');
 console.log('  - useLocalImageProcessing:', true);
 console.log('🚫 PRELOAD: Image processing API calls will be BLOCKED');
