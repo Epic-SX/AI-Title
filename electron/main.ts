@@ -289,6 +289,8 @@ ipcMain.handle('excel-download-updated-file', excelDownloadUpdatedFile);
 ipcMain.handle('excel-cleanup-copy', excelCleanupCopy);
 ipcMain.handle('excel-refresh-copy', excelRefreshCopy);
 ipcMain.handle('excel-overwrite-original', excelOverwriteOriginal);
+ipcMain.handle('excel-create-new-xlsx', excelCreateNewXlsx);
+ipcMain.handle('excel-download-new-xlsx', excelDownloadNewXlsx);
 
 
 
@@ -720,6 +722,71 @@ async function excelOverwriteOriginal(): Promise<any> {
     return await response.json();
   } catch (error) {
     console.error('Error overwriting original file:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelCreateNewXlsx(event: any, processedResults: any): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/create-new-xlsx`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ processed_results: processedResults })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Error creating new XLSX:', error);
+    return { success: false, message: `Error: ${error}` };
+  }
+}
+
+async function excelDownloadNewXlsx(event: any, filename: string): Promise<any> {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/excel/download-new-xlsx/${filename}`, {
+      method: 'GET'
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server responded with status: ${response.status}`);
+    }
+    
+    // Get the file blob
+    const blob = await response.blob();
+    
+    // Use Electron's dialog to save the file
+    const { dialog } = require('electron');
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Save New XLSX File',
+      defaultPath: filename,
+      filters: [
+        { name: 'Excel Files', extensions: ['xlsx'] },
+        { name: 'All Files', extensions: ['*'] }
+      ]
+    });
+
+    if (result.canceled || !result.filePath) {
+      return { success: false, message: 'Download cancelled' };
+    }
+
+    // Save the file
+    const arrayBuffer = await blob.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    fs.writeFileSync(result.filePath, buffer);
+    
+    console.log(`✅ New XLSX file downloaded and saved to: ${result.filePath}`);
+    
+    return { 
+      success: true, 
+      message: 'File downloaded successfully',
+      filePath: result.filePath
+    };
+  } catch (error) {
+    console.error('Error downloading new XLSX file:', error);
     return { success: false, message: `Error: ${error}` };
   }
 }

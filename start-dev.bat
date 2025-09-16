@@ -12,7 +12,7 @@ echo "2. Electron ビルド中..."
 npm run build-electron
 
 echo "3. バックエンドURL確認..."
-echo "現在のバックエンドURL: http://162.43.19.70"
+echo "現在のバックエンドURL: http://localhost:8000"
 echo ".envファイルで変更可能です"
 
 echo "4. React 開発サーバーを起動中..."

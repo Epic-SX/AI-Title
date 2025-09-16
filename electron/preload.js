@@ -139,7 +139,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
     downloadUpdatedFile: () => ipcRenderer.invoke('excel-download-updated-file'),
     cleanupCopy: () => ipcRenderer.invoke('excel-cleanup-copy'),
     refreshCopy: () => ipcRenderer.invoke('excel-refresh-copy'),
-    overwriteOriginal: () => ipcRenderer.invoke('excel-overwrite-original')
+    overwriteOriginal: () => ipcRenderer.invoke('excel-overwrite-original'),
+    createNewXlsx: (processedResults) => ipcRenderer.invoke('excel-create-new-xlsx', processedResults),
+    downloadNewXlsx: (filename) => ipcRenderer.invoke('excel-download-new-xlsx', filename)
   },
   
   // Remove event listeners
@@ -202,7 +204,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Configuration flags
   config: {
     enableImageProcessingAPI: false,  // Disable image processing API calls
-    backendUrl: 'http://162.43.19.70', // Remote backend URL
+    backendUrl: 'http://162.43.19.70:5000', // Remote backend URL
     useLocalImageProcessing: true     // Use local image processing instead
   }
 });
@@ -210,7 +212,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 console.log('✅ PRELOAD: electronAPI exposed to window');
 console.log('📋 PRELOAD: Configuration set:');
 console.log('  - enableImageProcessingAPI:', false);
-console.log('  - backendUrl:', 'http://162.43.19.70');
+console.log('  - backendUrl:', 'http://162.43.19.70:5000');
 console.log('  - useLocalImageProcessing:', true);
 console.log('🚫 PRELOAD: Image processing API calls will be BLOCKED');
 console.log('🖼️ PRELOAD: Local image processing fallback enabled');

@@ -9,6 +9,7 @@ import re
 import os
 import time
 import logging
+from app.services.category_lookup_service import CategoryLookupService
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -20,8 +21,11 @@ class ExcelDataService:
             current_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             excel_file_path = os.path.join(current_dir, "PL出品マクロ.xlsm")
         self.excel_file_path = excel_file_path
-        logger.info(f"📊 Excel file path: {self.excel_file_path}")
-        logger.info(f"📊 Excel file exists: {os.path.exists(self.excel_file_path)}")
+        logger.info(f"[EXCEL] File path: {self.excel_file_path}")
+        logger.info(f"[EXCEL] File exists: {os.path.exists(self.excel_file_path)}")
+        
+        # Initialize category lookup service
+        self.category_service = CategoryLookupService()
         
         # Pre-defined sheet headers (constant structure like your sample code)
         # These headers match exactly what's in the PL出品マクロ.xlsm file
@@ -190,6 +194,28 @@ class ExcelDataService:
         
         # Default sheet for unclassified items
         self.default_sheet = 'トップス'
+    
+    def get_category_number_for_product(self, product_data: Dict) -> Tuple[Optional[str], Dict]:
+        """
+        Get category number for a product using AI and category lookup service.
+        
+        Args:
+            product_data: Dictionary containing product information
+            
+        Returns:
+            Tuple of (category_number, lookup_info)
+        """
+        try:
+            # Use the category lookup service to get category number
+            category_number, lookup_info = self.category_service.get_category_number_with_ai(product_data)
+            
+            logger.info(f"[CATEGORY] Lookup for product: {product_data.get('title', 'Unknown')} -> {category_number}")
+            
+            return category_number, lookup_info
+            
+        except Exception as e:
+            logger.error(f"❌ Error getting category number: {str(e)}")
+            return None, {'method': 'error', 'error': str(e)}
         
     def classify_product_category(self, title: str, product_data: Dict) -> str:
         """
@@ -356,6 +382,19 @@ class ExcelDataService:
             
             target_sheet = self.classify_product_category(title, data)
             
+            # Get category number using AI
+            category_number, lookup_info = self.get_category_number_for_product(data)
+            if category_number:
+                data['カテゴリ'] = category_number
+                logger.info(f"[SUCCESS] Added category number {category_number} to product data")
+                logger.info(f"[METHOD] Category lookup method: {lookup_info.get('method', 'unknown')}")
+                if 'category_info' in lookup_info:
+                    logger.info(f"[DETAILS] Category details: {lookup_info['category_info']}")
+            else:
+                logger.warning(f"[WARNING] Could not determine category number for product: {title}")
+                logger.info(f"[INFO] Lookup info: {lookup_info}")
+                data['カテゴリ'] = ""  # Leave empty if not found
+            
             # Map data to sheet headers
             mapped_data = self.map_data_to_sheet_headers(data, target_sheet)
             if not mapped_data:
@@ -480,6 +519,15 @@ class ExcelDataService:
                         continue
                     
                     target_sheet = self.classify_product_category(title, data)
+                    
+                    # Get category number using AI
+                    category_number, lookup_info = self.get_category_number_for_product(data)
+                    if category_number:
+                        data['カテゴリ'] = category_number
+                        logger.info(f"✅ Added category number {category_number} to product {i+1}")
+                    else:
+                        logger.warning(f"⚠️ Could not determine category number for product {i+1}: {title}")
+                        data['カテゴリ'] = ""  # Leave empty if not found
                     
                     # Map data to sheet headers
                     mapped_data = self.map_data_to_sheet_headers(data, target_sheet)

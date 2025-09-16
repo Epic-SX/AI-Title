@@ -33,7 +33,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave }) => {
 
   const handleReset = () => {
     const defaultSettings: AppSettings = {
-      backendUrl: process.env.REACT_APP_BACKEND_URL || 'http://162.43.19.70',
+      backendUrl: process.env.REACT_APP_BACKEND_URL || 'http://localhost:8000',
       characterLimit: 50,
       maxExportCount: 100,
       autoSelectCategory: true
@@ -105,7 +105,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({ settings, onSave }) => {
             <Input
               id="backendUrl"
               type="url"
-              placeholder="http://162.43.19.70"
+              placeholder="http://localhost:8000"
               value={formData.backendUrl}
               onChange={(e) => setFormData(prev => ({ ...prev, backendUrl: e.target.value }))}
               className="flex-1"

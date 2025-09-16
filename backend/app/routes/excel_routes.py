@@ -4,12 +4,20 @@ Excel routes for managing product data in the PL出品マクロ.xlsm file.
 
 from flask import Blueprint, request, jsonify
 from app.services.excel_data_service import ExcelDataService
+from app.services.excel_creator_service import ExcelCreatorService
+from app.services.category_lookup_service import CategoryLookupService
 import os
 
 excel_bp = Blueprint('excel', __name__,  url_prefix='/api')
 
 # Initialize the Excel service
 excel_service = ExcelDataService()
+
+# Initialize the Excel creator service
+excel_creator_service = ExcelCreatorService()
+
+# Initialize the Category lookup service
+category_service = CategoryLookupService()
 
 @excel_bp.route('/health', methods=['GET'])
 def health_check():
@@ -891,4 +899,284 @@ def download_updated_excel_file():
         return jsonify({
             'success': False,
             'message': f'Error downloading file: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/category-lookup', methods=['POST'])
+def lookup_category_number():
+    """
+    Look up category number for a product using AI and category database.
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No product data provided'
+            }), 400
+        
+        # Get category number using AI
+        category_number, lookup_info = category_service.get_category_number_with_ai(data)
+        
+        # Get category information if found
+        category_info = None
+        if category_number:
+            category_info = category_service.get_category_by_number(category_number)
+        
+        return jsonify({
+            'success': True,
+            'category_number': category_number,
+            'category_info': category_info,
+            'lookup_info': lookup_info
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error looking up category: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/category-search', methods=['POST'])
+def search_categories():
+    """
+    Search categories by keywords.
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'keywords' not in data:
+            return jsonify({
+                'success': False,
+                'message': 'Keywords are required for search'
+            }), 400
+        
+        keywords = data['keywords']
+        if not isinstance(keywords, list):
+            keywords = [keywords]
+        
+        # Search for matching categories
+        matches = category_service.search_categories_by_keywords(keywords)
+        
+        return jsonify({
+            'success': True,
+            'matches': matches,
+            'total_matches': len(matches)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error searching categories: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/category-info/<category_number>', methods=['GET'])
+def get_category_info(category_number):
+    """
+    Get detailed information about a specific category number.
+    """
+    try:
+        category_info = category_service.get_category_by_number(category_number)
+        
+        if category_info:
+            return jsonify({
+                'success': True,
+                'category_info': category_info
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': f'Category number {category_number} not found'
+            }), 404
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error getting category info: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/categories', methods=['GET'])
+def get_all_categories():
+    """
+    Get all available categories.
+    """
+    try:
+        categories = category_service.get_all_categories()
+        
+        return jsonify({
+            'success': True,
+            'categories': categories,
+            'total_categories': len(categories)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error getting categories: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/category-stats', methods=['GET'])
+def get_category_statistics():
+    """
+    Get statistics about the category database.
+    """
+    try:
+        stats = category_service.get_category_statistics()
+        
+        return jsonify({
+            'success': True,
+            'statistics': stats
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error getting category statistics: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/create-new-file', methods=['POST'])
+def create_new_excel_file():
+    """
+    Create a new XLSX file with the same structure as PL出品マクロ.xlsm but without macros.
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        # Get optional filename from request
+        filename = data.get('filename', 'PL出品マクロ_新規作成.xlsx')
+        if not filename.endswith('.xlsx'):
+            filename += '.xlsx'
+        
+        # Create output path in backend directory
+        output_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), filename)
+        
+        # Create the Excel file with structure only
+        success, message = excel_creator_service.create_excel_file_with_structure(output_path)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': message,
+                'file_path': output_path,
+                'filename': filename
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 500
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error creating Excel file: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/create-with-data', methods=['POST'])
+def create_excel_file_with_data():
+    """
+    Create a new XLSX file with the same structure and add product data to appropriate sheets.
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'message': 'No data provided'
+            }), 400
+        
+        # Get product data list
+        products = data.get('products', [])
+        
+        # If no products provided, try to get from current processing results
+        if not products:
+            # This would need to be implemented to get current processing results
+            # For now, return an empty file
+            products = []
+        
+        # Get optional filename from request
+        filename = data.get('filename', 'PL出品マクロ_新規作成.xlsx')
+        if not filename.endswith('.xlsx'):
+            filename += '.xlsx'
+        
+        # Create output path in backend directory
+        output_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), filename)
+        
+        # Create Excel file with data
+        success_count, failure_count, error_messages = excel_creator_service.add_data_to_excel_file(products, output_path)
+        
+        return jsonify({
+            'success': True,
+            'summary': {
+                'total_products': len(products),
+                'successfully_added': success_count,
+                'failed_to_add': failure_count
+            },
+            'errors': error_messages if error_messages else None,
+            'message': f'Successfully created Excel file with {success_count} products: {filename}',
+            'file_path': output_path,
+            'filename': filename
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error creating Excel file with data: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/download-new-file/<filename>', methods=['GET'])
+def download_new_excel_file(filename):
+    """
+    Download a newly created Excel file from the backend directory.
+    """
+    try:
+        # Create file path in backend directory
+        file_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), filename)
+        
+        if not os.path.exists(file_path):
+            return jsonify({
+                'success': False,
+                'message': f'Excel file not found: {filename}'
+            }), 404
+        
+        # Return the file for download
+        from flask import send_file
+        return send_file(
+            file_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        )
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error downloading file: {str(e)}'
+        }), 500
+
+@excel_bp.route('/excel/new-file-info', methods=['GET'])
+def get_new_excel_file_info():
+    """
+    Get information about the structure of new Excel files that can be created.
+    """
+    try:
+        # Get sheet info from the creator service
+        sheet_info = excel_creator_service.get_sheet_info()
+        
+        return jsonify({
+            'success': True,
+            'sheet_info': sheet_info,
+            'message': 'Information about new Excel file structure'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'message': f'Error getting file info: {str(e)}'
         }), 500 
